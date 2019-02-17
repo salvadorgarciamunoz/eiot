@@ -679,8 +679,8 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
             sr     = (dm_o - dm_hat.T)**2
             ssr    = np.sum(sr)
             
-            r_hat = x_hat
-            return r_hat,dm_hat,tau,ssr,model,results
+            r_hat = x_hat[np.array(pls_obj['indx_r'])-1]
+            return r_hat,x_hat,dm_hat,tau,ssr,model,results
         else:
             O=dm.shape[0]
             for o in np.arange(O):
@@ -759,6 +759,6 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                     dm_hat = np.vstack((dm_hat,dm_hat_))
                     ssr    = np.vstack((ssr,ssr_))
                     
-            r_hat = x_hat
-            return r_hat,dm_hat,tau,ssr,model,results
+            r_hat = x_hat[:,np.array(pls_obj['indx_r'])-1]
+            return r_hat,x_hat,dm_hat,tau,ssr,model,results
 
