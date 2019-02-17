@@ -612,8 +612,8 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
         model.my      = Param(model.M,initialize = pls_obj['pyo_my'])
         model.sy      = Param(model.M,initialize = pls_obj['pyo_sy'])
         model.var_t   = Param(model.M,initialize = pls_obj['pyo_var_t'])
-        if not(isinstance(rk,bool)) and (pls_obj['index_rk_eq']!=0):    
-            model.index_rk_eq = Set(initialize = pls_obj['index_rk_eq'])
+        if not(isinstance(rk,bool)) and (pls_obj['indx_rk_eq']!=0):    
+            model.indx_rk_eq = Set(initialize = pls_obj['indx_rk_eq'])
             
         def calc_scores(model,i):
             return model.tau[i] == sum(model.Ws[n,i] * ((model.x_hat[n]-model.mx[n])/model.sx[n]) for n in model.N )
@@ -626,6 +626,11 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
         def calc_ht2(model):
             return model.ht2 == sum( model.tau[a]**2/model.var_t[a] for a in model.A)
         model.eq3 = Constraint(rule=calc_ht2)
+        
+        def non_neg_const(model,i):
+                return model.x_hat[i]  >= 0
+        model.eq4 = Constraint(model.indx_r, rule=non_neg_const)
+
 
         if dm.ndim==1:        
             dm_o      = dm
@@ -644,15 +649,15 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                 return sum((model.dm[m]-model.y_hat[m])**2 for m in model.M) #+ 0.0*model.ht2
             model.obj = Objective(rule=obj_rule) 
         
-            if not(isinstance(rk,bool)) and (pls_obj['index_rk_eq']!=0):
+            if not(isinstance(rk,bool)) and (pls_obj['indx_rk_eq']!=0):
                 if isinstance(rk,list):
                     rk=np.array(rk)  
-                rk       = ee.np1D2pyomo(rk,indexes=pls_obj['index_rk_eq'])
-                model.rk = Param(model.index_rk_eq,initialize=rk)
+                rk       = ee.np1D2pyomo(rk,indexes=pls_obj['indx_rk_eq'])
+                model.rk = Param(model.indx_rk_eq,initialize=rk)
                
                 def known_supervised_eq_const(model,i):
                     return model.x_hat[i] == model.rk[i]
-                model.rk_eq = Constraint(model.index_rk_eq,rule=known_supervised_eq_const)
+                model.rk_eq = Constraint(model.indx_rk_eq,rule=known_supervised_eq_const)
         
             solver = SolverFactory('ipopt')
             solver.options['linear_solver']='ma57'
@@ -673,7 +678,9 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
             dm_hat = pls_obj['my'].T+(( pls_obj['Q'] @ tau)*pls_obj['sy'].T)
             sr     = (dm_o - dm_hat.T)**2
             ssr    = np.sum(sr)
-            return x_hat,y_hat,tau,dm_hat,ssr,model,results
+            
+            r_hat = x_hat
+            return r_hat,dm_hat,tau,ssr,model,results
         else:
             O=dm.shape[0]
             for o in np.arange(O):
@@ -701,14 +708,14 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                 model.obj = Objective(rule=obj_rule) 
 
                 
-                if not(isinstance(rk,bool)) and (pls_obj['index_rk_eq']!=0):
+                if not(isinstance(rk,bool)) and (pls_obj['indx_rk_eq']!=0):
                     rk_       = rk[o,:]
-                    rk_       = ee.np1D2pyomo(rk_,indexes=pls_obj['index_rk_eq'])
-                    model.rk = Param(model.index_rk_eq,initialize=rk_)
+                    rk_       = ee.np1D2pyomo(rk_,indexes=pls_obj['indx_rk_eq'])
+                    model.rk = Param(model.indx_rk_eq,initialize=rk_)
                
                     def known_supervised_eq_const(model,i):
                         return model.x_hat[i] == model.rk[i]
-                    model.rk_eq = Constraint(model.index_rk_eq,rule=known_supervised_eq_const)
+                    model.rk_eq = Constraint(model.indx_rk_eq,rule=known_supervised_eq_const)
                 
                 
                 solver = SolverFactory('ipopt')
@@ -735,7 +742,7 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                 model.del_component(model.dm)
                 model.del_component(model.con2)
                 model.del_component(model.obj)  
-                if not(isinstance(rk,bool)) and (pls_obj['index_rk_eq']!=0):
+                if not(isinstance(rk,bool)) and (pls_obj['indx_rk_eq']!=0):
                     model.del_component(model.rk)
                     model.del_component(model.rk_eq)
                 
@@ -751,4 +758,7 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                     tau    = np.vstack((tau,tau_.T))
                     dm_hat = np.vstack((dm_hat,dm_hat_))
                     ssr    = np.vstack((ssr,ssr_))
-            return x_hat,y_hat,tau,dm_hat,ssr,model,results
+                    
+            r_hat = x_hat
+            return r_hat,dm_hat,tau,ssr,model,results
+

@@ -163,6 +163,17 @@ def is_list_integer (mylist):
     except:
             return False
 
+def dry_basis(Ck,RH,gab_coeffs):
+    W      = GAB(RH,gab_coeffs)
+    W      = W/100
+    Ck_dry = Ck/(1+W)
+    Ck_h20 = 1-np.sum(Ck_dry,1,keepdims=1)
+    Ck_dry = np.hstack((Ck_dry,Ck_h20))
+    Ck_out = {'humid':Ck, 'dry':Ck_dry}
+    return Ck_out
+
+        
+        
 def GAB(RH,gab_coeffs):
 #
 # RH = [0 100]
