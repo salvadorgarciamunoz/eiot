@@ -3,7 +3,16 @@ import matplotlib.pyplot as plt
 import scipy.io as spio
 from scipy.special import factorial
 
+def humid_2_dry(Ck,RH,gab_coeffs):
+    W      = GAB(RH,gab_coeffs)
+    W      = W/100
+    Ck_dry = Ck/(1+W)
+    Ck_h20 = 1-np.sum(Ck_dry,1,keepdims=1)
+    Ck_dry = np.hstack((Ck_dry,Ck_h20))
+    Ck_out = {'Ck_humid':Ck, 'Ck_dry':Ck_dry}
+    return Ck_out
 
+        
 def write_eiot_matlab(filename,eiot_obj):
     spio.savemat(filename,eiot_obj,appendmat=True)
     
@@ -79,7 +88,7 @@ def eiot_summary_plot(eiot_obj,filename,saveplot_flag):
 
     plt.subplots_adjust(hspace=.75)
     if saveplot_flag==1: 
-        plt.savefig(filename+'.svg',dpi=1000)
+        plt.savefig(filename+'.png',dpi=1000)
     plt.show()
     
     
@@ -98,7 +107,7 @@ def eiot_summary_plot(eiot_obj,filename,saveplot_flag):
             first_time=0 
     plt.subplots_adjust(hspace=.5,wspace=.5)
     if saveplot_flag==1: 
-        plt.savefig(filename+'_wCI.svg',dpi=1000)
+        plt.savefig(filename+'_wCI.png',dpi=1000)
     plt.show()
     return   
         
