@@ -2,15 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io as spio
 from scipy.special import factorial
-
-def humid_2_dry(Ck,RH,gab_coeffs):
-    W      = GAB(RH,gab_coeffs)
-    W      = W/100
-    Ck_dry = Ck/(1+W)
-    Ck_h20 = 1-np.sum(Ck_dry,1,keepdims=1)
-    Ck_dry = np.hstack((Ck_dry,Ck_h20))
-    Ck_out = {'Ck_humid':Ck, 'Ck_dry':Ck_dry}
-    return Ck_out
+import pandas as pd
+from bokeh.io import show, output_file
+from bokeh.plotting import figure
+from bokeh.layouts import column
+from bokeh.models import ColumnDataSource
 
         
 def write_eiot_matlab(filename,eiot_obj):
@@ -72,7 +68,24 @@ def np1D2pyomo(arr,*,indexes=False):
     return output
 
 
-def eiot_summary_plot(eiot_obj,filename,saveplot_flag):
+def eiot_summary_plot(eiot_obj,*,filename='myplot',saveplot_flag=False):
+    first_time=1
+    for i in np.arange(1,eiot_obj['S_hat'].shape[0]+1):
+        ax = plt.subplot(np.ceil(eiot_obj['S_hat'].shape[0]/2),2,i)
+        s_hat    = eiot_obj['S_hat'][i-1,:]
+        s_hat_ci = eiot_obj['S_E_CONF_INT'][i-1,:]
+        ax.plot(s_hat,linewidth=2.0)
+        ax.plot(s_hat+s_hat_ci,':r',linewidth=.5)
+        ax.plot(s_hat-s_hat_ci,':r',linewidth=.5)
+        ax.set(ylabel='$\hat S_'+str(i)+'$')
+        if first_time==1:
+            ax.set(title='Apparent Pure Spectra with C.I.')
+            first_time=0 
+    plt.subplots_adjust(hspace=.5,wspace=.5)
+    if saveplot_flag: 
+        plt.savefig(filename+'_wCI.png',dpi=1000)
+    plt.show()
+    
     if not(isinstance(eiot_obj['S_I'],float)):
         fig, (ax1, ax2, ax3) = plt.subplots(3)
         ax1.plot(eiot_obj['S_hat'].T)
@@ -87,28 +100,13 @@ def eiot_summary_plot(eiot_obj,filename,saveplot_flag):
         ax1.set(title='Apparent spectra of pure species', ylabel=r'$\hat S$')
 
     plt.subplots_adjust(hspace=.75)
-    if saveplot_flag==1: 
+    if saveplot_flag: 
         plt.savefig(filename+'.png',dpi=1000)
     plt.show()
     
     
-    fig
-    first_time=1
-    for i in np.arange(1,eiot_obj['S_hat'].shape[0]+1):
-        ax = plt.subplot(np.ceil(eiot_obj['S_hat'].shape[0]/2),2,i)
-        s_hat    = eiot_obj['S_hat'][i-1,:]
-        s_hat_ci = eiot_obj['S_E_CONF_INT'][i-1,:]
-        ax.plot(s_hat,linewidth=2.0)
-        ax.plot(s_hat+s_hat_ci,':r',linewidth=.5)
-        ax.plot(s_hat-s_hat_ci,':r',linewidth=.5)
-        ax.set(ylabel='$\hat S_'+str(i)+'$')
-        if first_time==1:
-            ax.set(title='Apparent Pure Spectra with C.I.')
-            first_time=0 
-    plt.subplots_adjust(hspace=.5,wspace=.5)
-    if saveplot_flag==1: 
-        plt.savefig(filename+'_wCI.png',dpi=1000)
-    plt.show()
+
+
     return   
         
 def snv (x):
@@ -155,12 +153,7 @@ def savgol(ws,od,op,Dm):
     if Dm.ndim==1: 
         Dm_sg= M @ Dm
     else:
-        for i in np.arange(1,Dm.shape[0]+1):
-            dm_ = M @ Dm[i-1,:]
-            if i==1:
-                Dm_sg=dm_
-            else:
-                Dm_sg=np.vstack((Dm_sg,dm_))
+        Dm_sg= Dm @ M.T
     return Dm_sg,M
 
 def is_list_integer (mylist):
@@ -172,121 +165,73 @@ def is_list_integer (mylist):
     except:
             return False
 
-def dry_basis(Ck,RH,gab_coeffs):
-    W      = GAB(RH,gab_coeffs)
-    W      = W/100
-    Ck_dry = Ck/(1+W)
-    Ck_h20 = 1-np.sum(Ck_dry,1,keepdims=1)
-    Ck_dry = np.hstack((Ck_dry,Ck_h20))
-    Ck_out = {'humid':Ck, 'dry':Ck_dry}
-    return Ck_out
 
-        
-        
-def GAB(RH,gab_coeffs):
-#
-# RH = [0 100]
-# W  = [0 100] 
-#
-#  Will return the prediction of the percent increase of weight from bone-dry 
-#
-#  RH can be a vector 
-#  gab_coeffs is given by function "getGAB" as output.values
-# 
-    RH=np.array(RH)
-    RH=RH/100
-    for r in list(range(0,RH.size)):  
-        if gab_coeffs.ndim>1:
-            RHaux = np.tile(RH[r],(gab_coeffs.shape[0],1))
-            Wm = gab_coeffs[:,0:1]
-            C  = gab_coeffs[:,1:2]
-            K  = gab_coeffs[:,2:3]
-        else:
-            if RH.ndim==0:
-                RHaux = RH
-            else: 
-                RHaux = RH[r]
-            Wm = gab_coeffs[0]
-            C  = gab_coeffs[1]
-            K  = gab_coeffs[2]
-        Waux = Wm*C*K*RHaux/((1-K*RHaux)*(1-K*RHaux+C*K*RHaux))
-        if r==0:
-            W=Waux.T
-        else:
-            W=np.vstack((W,Waux.T))
-    if W.ndim==0:
-        if W<0:
-            W=0
-    else:
-        W[W<0]=0
-    return W
-
-
-def getGAB(input):
-# Simple function to get coefficients for GAB equation for excipients
-# To get list of materials with index:
-#  getGAB('LIST')
-#
-# To get coefficients, call function in indexes: for example
-#
-#  getGAB([1, 3, 5])  will return the GAB coefficients for materials #1, #3 and #5
-#
-#   output.values are the coefficients
-#   output.labels are the materials chosen
-# 
-# GAB Equation is:
-# W = Wm*C*K*RH /( (1-K*RH)*(1-K*RH+ C*K*RH) )
-# 
-#  Where W is in % [0 1] and RH is in percent [0 100] {Not my preference but taken from the paper}
-#
-# Data taken from JOURNAL OF PHARMACEUTICAL SCIENCES, VOL. 99, NO. 11, NOVEMBER 2010 
-# Table 4. GAB Parameters for Common Pharmaceutical ExcipientsExcipient WmCK
-#
-   GABS=[ 
-     ['0 Non-hygroscopic API'                   ,0          ,1          ,1    ],      
-     ['1 Calcium carbonate'                     ,0.149      ,33.933     ,0.803],
-     ['2 Croscarmellose sodium'                 ,10.206     ,3.960      ,0.822],
-     ['3 Crospovidone'                          ,15.688     ,2.630      ,0.844],
-     ['4 Crosslinked polyacrylic acid'          ,9.864      ,1.011      ,0.892],
-     ['5 Dibasic calcium phosphate anhydrous'   ,0.173      ,37.490     ,0.671],
-     ['6 Hydroxypropyl cellulose'               ,4.507      ,1.526      ,0.907],
-     ['7 Hydroxypropylmethyl cellulose'         ,6.372      ,2.295      ,0.821],
-     ['8 Lactose monohydrate'                   ,0.039      ,7.582      ,0.967],
-     ['9 Lactose regular'                       ,0.647      ,0.023      ,0.770],
-     ['10 Lactose, spray dried'                  ,8.658      ,4.148      ,0.026],
-     ['11 Magnesium stearate'                    ,1.336      ,1500.488   ,0.004],
-     ['12 Magnesium carbonate'                   ,0.665      ,11.177     ,0.703],
-     ['13 Mannitol'                              ,0.848      ,0.101      ,0.701],
-     ['14 Microcrystalline cellulose'            ,3.979      ,12.524     ,0.770],
-     ['15 OpadryTM85F'                           ,1.013      ,2.592      ,0.991],
-     ['16 OpadryTM85G184090'                     ,3.114      ,1.247      ,0.837],
-     ['17 OpadryTMclear'                         ,2.295      ,2.918      ,0.956],
-     ['18 OpadryIITMwhite OY-LS-28914'           ,1.013      ,2.592      ,0.991],
-     ['19 Polyethylene oxide'                    ,0.389      ,1.028      ,1.089],
-     ['20 Polyvinylpyrrolidone'                  ,0.721      ,1.962      ,17.471],
-     ['21 Silicon dioxide'                       ,1.039      ,7.748      ,0.606],
-     ['22 Sodium starch glycolate'               ,6.100      ,5.330      ,0.991],
-     ['23 Sorbitol'                              ,357.379    ,0.087      ,0.372],
-     ['24 Starch1500'                            ,7.400      ,15.930     ,0.736],
-     ['25 Talc'                                  ,0.846      ,8.733      ,0.144],
-     ['26 Talc [lo micron]'                      ,0.142      ,8.964      ,0.854],
-     ['27 Titanium dioxide'                      ,0.202      ,10.544     ,0.771],
-     ['28 Lilly MCCPH102'                        ,13.72028895, 0.352618729 , 0.613290498],
-     ['29 Lilly SSF'                             ,76.03501406, 0.000452186 , 0.714186336]]
-     
-   if  input=='LIST':
-       return [row[0] for row in GABS]
-   else:
-       if is_list_integer(input) or isinstance(input,(int)) :
-           if is_list_integer(input):
-               aux_=[GABS[i] for i in input]
-               output=np.array([[row[1] for row in aux_ ],[row[2] for row in aux_ ],[row[3] for row in aux_ ]])
-               return output.T
-           else:
-               aux_=GABS[input]
-               output=np.array([aux_[1], aux_[2], aux_[3] ])
-               return output
-       else:
-           return 0
    
+def predvsobsplot(Y,Yhat,*,variable_names=False,obs_names=False):
+    """
+    Plot observed vs predicted values
+    by Salvador Garcia-Munoz 
+    (sgarciam@ic.ac.uk ,salvadorgarciamunoz@gmail.com)
+    
+    Y:    Numpy array or pandas dataframe with observed values
+    
+    Yhat: Numpy array with predicted data
+    
+    variable_names: List with names of the variables  (columns of Y) if Y
+    is a numpy array [otherwise names are taken from Pandasdataframe]
+    
+    """
+
+
+    if isinstance(Y,np.ndarray):
+        if isinstance(variable_names,np.bool):
+            YVar = []
+            for n in list(np.arange(Y.shape[1])+1):
+                YVar.append('YVar #'+str(n))
+        else:
+            YVar=variable_names
+            
+        if isinstance(obs_names,np.bool):
+            ObsID_ = []
+            for n in list(np.arange(Y.shape[0])+1):
+                ObsID_.append('Obs #'+str(n))
+        else:
+            ObsID_=obs_names
+
+    elif isinstance(Y,pd.DataFrame):
+        Y_=np.array(Y.values[:,1:]).astype(float)
+        YVar = Y_.columns.values
+        YVar = YVar[1:]
+        YVar = YVar.tolist()
+        ObsID_ = Y.values[:,0].astype(str)
+        ObsID_ = ObsID_.tolist()
+        
+    TOOLS = "save,wheel_zoom,box_zoom,pan,reset,box_select,lasso_select"
+    TOOLTIPS = [
+                ("index", "$index"),
+                ("(x,y)", "($x, $y)"),
+                ("Obs: ","@ObsID")
+                ]
+    
+    rnd_num=str(int(np.round(1000*np.random.random_sample())))
+    output_file("ObsvsPred_"+rnd_num+".html",title='ObsvsPred')
+    plot_counter=0
+    
+    for i in list(range(Y_.shape[1])):
+        x_ = Y[:,i]
+        y_ = Yhat[:,i]           
+        source = ColumnDataSource(data=dict(x=x_, y=y_,ObsID=ObsID_))
+        p = figure(tools=TOOLS, tooltips=TOOLTIPS,plot_width=600, plot_height=600, title=YVar[i])
+        p.circle('x', 'y', source=source,size=7,color='darkblue')
+        p.line([np.nanmin(x_),np.nanmax(x_)],[np.nanmin(y_),np.nanmax(y_)],line_color='cyan',line_dash='dashed')
+        p.xaxis.axis_label ='Observed'
+        p.yaxis.axis_label ='Predicted'
+        if plot_counter==0:
+            p_list=[p]
+        else:
+            p_list.append(p)
+        plot_counter = plot_counter+1            
+    show(column(p_list))        
+    return    
+
     

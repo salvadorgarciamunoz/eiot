@@ -1,40 +1,43 @@
+"""
+EIOT code for Python v 1.0
+by Sal Garcia (sal.garcia@lilly.com)
+
+"""
+
 import eiot_extras as ee
 import numpy as np
-import pyphi as phi
 from pyomo.environ import *
+import pyphi as phi
 
 
-    
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  
-
-def build_supervised(Dm,Ck,Rk,num_e_sI,num_sI_U,h2o_flag,RH,gab_coeffs):
-    if h2o_flag==1:
-        W      = ee.GAB(RH,gab_coeffs)
-        W      = W/100
-        Ck_dry = Ck/(1+W)
-        Ck_h20 = 1-np.sum(Ck_dry,1,keepdims=1)
-        Ck_dry = np.hstack((Ck_dry,Ck_h20))
-        Ck_out = {'Ck_humid':Ck, 'Ck_dry':Ck_dry}
-        Ck     = Ck_dry
+def build(dm,ck,*,rk=False,num_e_si=0,num_si_u=0):
+    if not(isinstance(rk,bool)):
+        print('Building supervised EIOT')
+        eiot_obj=build_supervised_(dm,ck,Rk=rk,num_e_sI=num_e_si,num_sI_U=num_si_u)
     else:
-        Ck_out = Ck
+        print('Building Unsupervised EIOT')
+        eiot_obj=build_(dm,ck,num_sI=num_si_u)  
+    return eiot_obj
+        
+def build_supervised_(Dm,Ck,Rk,num_e_sI,num_sI_U):
         
     Rk_mean  = np.mean(Rk,axis=0,keepdims=1)
     Rk_      = Rk - np.tile(Rk_mean,(Rk.shape[0],1))
     Rk_std   = np.std(Rk_,axis=0,keepdims=1)
     Rk_      = Rk_ / np.tile(Rk_std,(Rk.shape[0],1))
     Rk_n     = Rk_
-    # Do not scale binary numbers for exclusive signatures
+# Do not scale binary numbers for exclusive signatures
     if num_e_sI!=0:
         for i in range(Rk.shape[1]-num_e_sI,Rk.shape[1]):
             Rk_n[:,i]  = Rk[:,i]
             Rk_mean[0][i] = 0
-            Rk_std[0][i]  = 1
+            Rk_std[0][i]  = 1    
     Rk      = Rk_n        
     Ck_aug  = np.hstack((Ck,Rk))
     num_sI  = Rk.shape[1]+num_sI_U
@@ -119,7 +122,7 @@ def build_supervised(Dm,Ck,Rk,num_e_sI,num_sI_U,h2o_flag,RH,gab_coeffs):
     if isinstance(S_I_E,float):
         abs_max_exc_ri = np.nan
     else:
-        abs_max_exc_ri = 1.5*(r_I_E.max(axis=0)- r_I_E.min(axis=0))/2
+        abs_max_exc_ri = (r_I_E.max(axis=0)- r_I_E.min(axis=0))/2
     
     E_ch   = Dm - Ck @ S_hat    
     if isinstance(r_I,float):
@@ -171,21 +174,20 @@ def build_supervised(Dm,Ck,Rk,num_e_sI,num_sI_U,h2o_flag,RH,gab_coeffs):
         aux_dict=dict(((j+aux+1), abs_max_exc_ri[j]) for j in range(len(abs_max_exc_ri)))
     
     
-    eiot_obj['pyo_L']       = pyo_L
-    eiot_obj['pyo_N']       = pyo_N
-    eiot_obj['pyo_M']       = pyo_M
-    eiot_obj['pyo_S_hat']   = pyo_S_hat
-    eiot_obj['pyo_S_I']     = pyo_S_I
-    eiot_obj['pyo_Me']      = pyo_Me
-    eiot_obj['index_rk_eq'] = index_rk_eq
-    eiot_obj['index_rk_ex_eq']=index_rk_ex_eq
-    eiot_obj['lambdas'] = lambdas
+    eiot_obj['pyo_L']          = pyo_L
+    eiot_obj['pyo_N']          = pyo_N
+    eiot_obj['pyo_M']          = pyo_M
+    eiot_obj['pyo_S_hat']      = pyo_S_hat
+    eiot_obj['pyo_S_I']        = pyo_S_I
+    eiot_obj['pyo_Me']         = pyo_Me
+    eiot_obj['index_rk_eq']    = index_rk_eq
+    eiot_obj['index_rk_ex_eq'] = index_rk_ex_eq
+    eiot_obj['lambdas']        = lambdas
     
-
     if num_e_sI!=0:
         eiot_obj['pyo_abs_max_exc_ri']=aux_dict
     
-    return eiot_obj,Ck_out,lambdas
+    return eiot_obj
     
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -193,17 +195,7 @@ def build_supervised(Dm,Ck,Rk,num_e_sI,num_sI_U,h2o_flag,RH,gab_coeffs):
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     
-def build(Dm,Ck,num_sI,h2o_flag,RH,gab_coeffs):
-    if h2o_flag==1:
-        W      = ee.GAB(RH,gab_coeffs)
-        W      = W/100
-        Ck_dry = Ck/(1+W)
-        Ck_h20 = 1-np.sum(Ck_dry,1,keepdims=1)
-        Ck_dry = np.hstack((Ck_dry,Ck_h20))
-        Ck_out = {'Ck_humid':Ck, 'Ck_dry':Ck_dry}
-        Ck     = Ck_dry
-    else:
-        Ck_out = Ck
+def build_(Dm,Ck,num_sI):
         
     S_hat  = np.linalg.pinv(Ck.T@Ck)@Ck.T@Dm
     Dm_hat = Ck @ S_hat
@@ -284,180 +276,13 @@ def build(Dm,Ck,num_sI,h2o_flag,RH,gab_coeffs):
     eiot_obj['index_rk_ex_eq']=False
     eiot_obj['lambdas'] = lambdas
     
-    return eiot_obj,Ck_out,lambdas
-        
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    
-def buildwPLS(Dm,Ck,A,num_sI,*,Rk=False):
-    if isinstance(Rk,bool):        
-        pls_obj=phi.pls(Ck,Dm,A)
-        Dm_hat=phi.pls_pred(Ck,pls_obj)
-    else:
-        aux=np.hstack((Ck,Rk))
-        pls_obj=phi.pls(aux,Dm,A)
-        Dm_hat=phi.pls_pred(aux,pls_obj)
-    pls_obj=phi.conv_eiot(pls_obj,r_length=Ck.shape[1])
-    
-    Dm_hat=Dm_hat['Yhat']
-    if num_sI>0:
-        E_ch       = Dm-Dm_hat
-        [U,S,Vh]   = np.linalg.svd(E_ch)
-        V          = Vh.T
-        S_I        = V[:,0:num_sI]
-        S_short    = S[0:num_sI]
-        r_I        = U[:,0:num_sI] * np.tile(S_short,(U.shape[0],1))
-        SR         = E_ch- r_I @ S_I.T
-        SSR        = np.sum(SR**2,1,keepdims=1)
-        lambdas    = S[num_sI]
-    else:
-        S_I        = np.nan
-        SR         = Dm-Dm_hat 
-        E_ch       = SR
-        [U,S,Vh]   = np.linalg.svd(E_ch)
-        V          = Vh.T
-        lambdas    = np.diag(S)
-        lambdas    = np.diag(lambdas)
-        SSR        = np.sum(SR**2,axis=1)  
-        r_I        = np.nan
-        
-    if not(isinstance(S_I,float)):
-        S_I=S_I.T
-    
-    eiot_obj                   = pls_obj
-    eiot_obj['wPLS']           = True
-    eiot_obj['S_I']            = S_I
-    eiot_obj['E_ch']           = E_ch
-    eiot_obj['r_I']            = r_I
-    eiot_obj['SR']             = SR
-    eiot_obj['SSR']            = SSR
-    eiot_obj['num_sI']         = num_sI
-    eiot_obj['num_e_sI']       = 0
-    eiot_obj['abs_max_exc_ri'] = np.nan
-    eiot_obj['S_E_CONF_INT']   = np.nan
-#     From phi
-# =============================================================================
-#     pyo_A = np.arange(1,A+1)  #index for LV's
-#     pyo_N = np.arange(1,N+1)  #index for columns of X 
-#     pyo_M = np.arange(1,M+1)  #index for columns of Y (WAVENUMBERS)
-#     pyo_A = pyo_A.tolist()
-#     pyo_N = pyo_N.tolist()
-#     pyo_M = pyo_M.tolist()
-# =============================================================================
-#Convert Numpy objects to lists and dict for PYOMO    
-    if not(isinstance(S_I,float)):
-        pyo_S_I = ee.np2D2pyomo(eiot_obj['S_I'])   #convert numpy to dictionary
-        pyo_K   = np.arange(1,eiot_obj['S_I'].shape[0]+1)    #index for non-chemical interferences
-        pyo_K   = pyo_K.tolist()
-    else:
-        pyo_S_I = np.nan
-        pyo_K   = [0]
-
-    eiot_obj['pyo_K']     = pyo_K
-    eiot_obj['pyo_S_I']   = pyo_S_I
-    eiot_obj['lambdas'] = lambdas
-    
     return eiot_obj
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-def adapt(eiot_obj_,Dm2adapt,Ck_base,sum_r_nrs):
-    eiot_obj = eiot_obj_.copy()
-    #Pete's way - Force a Ck
-    #E_ch     = Ck_base @ eiot_obj['S_hat']
-    #r_I_hat  = np.linalg.inv(eiot_obj['S_I'] @ eiot_obj['S_I'].T) @ eiot_obj['S_I'] @ E_ch.T
-    #r_I_hat  = r_I_hat.T
-    #E        = E_ch - r_I_hat @ eiot_obj['S_I']
-    
-    #Sal's way
-    pred_obj_=calc(Dm2adapt,eiot_obj,sum_r_nrs)
-    r_I_hat = pred_obj_['r_I_hat']
-    E=Dm2adapt-pred_obj_['dm_hat']
-    E_ch = Dm2adapt - pred_obj_['r_hat'] @ eiot_obj['S_hat']
-    
-    #Hybrid way - Cheating
-    #pred_obj_ = calc(Dm2adapt,eiot_obj,sum_r_nrs)
-    #r_I_hat   = pred_obj_['r_I_hat']
-    #E         = Dm2adapt - np.hstack((Ck_base,r_I_hat)) @ eiot_obj['S_E']
-    #E_ch      = Ck_base @ eiot_obj['S_hat']
-    
-    
-    [U,S,Vh]=np.linalg.svd(E)
-    ind=S>eiot_obj['lambdas']
-    ind=ind*1
-    ind=np.sum(ind)
-    if ind>0:
-        V          = Vh.T
-        S_I_aug    = V[:,0:ind]
-        S_short    = S[0:ind]
-        r_I_aug    = U[:,0:ind] * np.tile(S_short,(U.shape[0],1))
-        if eiot_obj['num_e_sI']==0:
-            eiot_obj['E_ch'] = np.vstack((eiot_obj['E_ch'],E_ch)) 
-            eiot_obj['S_I']  = np.vstack((eiot_obj['S_I'],S_I_aug.T))
-            eiot_obj['S_E']  = np.vstack((eiot_obj['S_hat'],eiot_obj['S_I']))
-            # r_I's for these observations need to be augmented
-            r_I= np.hstack((r_I_hat,r_I_aug))
-            SR         = E_ch - r_I @ eiot_obj['S_I']
-            SSR        = np.sum(SR**2,1,keepdims=1)
-            eiot_obj['SR'] = np.vstack((eiot_obj['SR'],SR))
-            eiot_obj['SSR'] = np.vstack((eiot_obj['SSR'],SSR))
-            eiot_obj['num_sI'] = eiot_obj['num_sI'] +ind
-            
-            pyo_S_I = ee.np2D2pyomo(eiot_obj['S_I'])   #convert numpy to dictionary
-            pyo_M   = np.arange(1,eiot_obj['S_I'].shape[0]+1)    #index for non-chemical interferences
-            pyo_M   = pyo_M.tolist()
-            eiot_obj['pyo_S_I'] = pyo_S_I
-            eiot_obj['pyo_M']   = pyo_M
-            #Given size inconsistencies between the original r_I and the one derived with Dm2adapt
-            #just add r_I's in a list
-            if 'r_I_aug' in eiot_obj:
-                eiot_obj['r_I_aug'].append(r_I)
-            else:
-                eiot_obj['r_I_aug'] =[r_I]
-        else:
-            num_of_non_exc = eiot_obj['S_I'].shape[0]-eiot_obj['num_e_sI']
-            
-            eiot_obj['E_ch'] = np.vstack((eiot_obj['E_ch'],E_ch))   
-            eiot_obj['S_I']  = np.vstack((eiot_obj['S_I'][0:num_of_non_exc,:],S_I_aug.T, eiot_obj['S_I'][num_of_non_exc:,:]))
-            eiot_obj['S_E']  = np.vstack((eiot_obj['S_hat'],eiot_obj['S_I']))
-            # r_I's for these observations need to be augmented
-            r_I= np.hstack((r_I_hat[:,0:num_of_non_exc], r_I_aug ,r_I_hat[:,num_of_non_exc:]))
-            
-            SR         = E_ch - r_I @ eiot_obj['S_I'].T
-            SSR        = np.sum(SR**2,1,keepdims=1)
-            eiot_obj['SR'] = np.vstack((eiot_obj['SR'],SR))
-            eiot_obj['SSR'] = np.vstack((eiot_obj['SSR'],SSR))
-            eiot_obj['num_sI'] = eiot_obj['num_sI'] +ind
-            
-            pyo_S_I = ee.np2D2pyomo(eiot_obj['S_I'])   #convert numpy to dictionary
-            pyo_M   = np.arange(1,eiot_obj['S_I'].shape[0]+1)    #index for non-chemical interferences
-            pyo_M   = pyo_M.tolist()
-            eiot_obj['pyo_S_I'] = pyo_S_I
-            eiot_obj['pyo_M']   = pyo_M
-            #Given size inconsistencies between the original r_I and the one derived with Dm2adapt
-            #just add r_I's in a list
-            if 'r_I_aug' in eiot_obj:
-                eiot_obj['r_I_aug'].append(r_I)
-            else:
-                eiot_obj['r_I_aug'] =[r_I]
-            index_rk_ex_eq=np.array(eiot_obj['index_rk_ex_eq'])+ind
-            eiot_obj['index_rk_ex_eq']=index_rk_ex_eq.tolist()
-            
-    return eiot_obj
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         
         
-def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):    
+def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,rk=False):  
+    print('Evaluating EIOT on data')
+    if sum_r_nrs==0:
+        sum_r_nrs=np.array([0])
     if eiot_obj['num_e_sI']==0 or not(isinstance(rk,bool)):
         model        = ConcreteModel()
         model.L      = Set(initialize = eiot_obj['pyo_L'] )
@@ -490,7 +315,8 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
             
             if isinstance(sum_r_nrs,np.ndarray):  # convert numpy to float
                 sum_r_nrs=np.float64(sum_r_nrs)
-        
+
+                
             model.sum_r_nrs = Param(initialize = sum_r_nrs)
             model.dm        = Param(model.L, initialize = dm)
             def sum_r_eq_1(model):
@@ -499,7 +325,11 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
             def obj_rule(model):
                 return sum((model.dm[l]-model.dm_hat[l])**2 for l in model.L)
             model.obj = Objective(rule=obj_rule) 
-        
+            
+            if not isinstance(eiot_obj['pyo_S_I'],float):
+                for i in model.M:
+                    model.ri[i].value = 0   
+                
             if not(isinstance(rk,bool)):
                 if isinstance(rk,list):
                     rk=np.array(rk)  
@@ -513,6 +343,7 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                 model.rk_eq = Constraint(model.index_rk_eq,rule=known_supervised_eq_const)
             for i in model.N:
                 model.r[i].value = (1 - model.sum_r_nrs)/max(model.N)
+             
             for i in model.L:
                 model.dm_hat[i] =model.S_hat[1,i]
             solver = SolverFactory('ipopt')
@@ -557,7 +388,10 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                 def obj_rule(model):
                     return sum((model.dm[l]-model.dm_hat[l])**2 for l in model.L)
                 model.obj = Objective(rule=obj_rule) 
-                
+                if not isinstance(eiot_obj['pyo_S_I'],float):
+                    for i in model.M:
+                        model.ri[i].value = 0
+                    
                 if not(isinstance(rk,bool)):
                     rk_       = rk[o,:]
                     rk_       = rk_ - eiot_obj['Rk_mean']
@@ -571,6 +405,7 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                 
                 for i in model.N:
                     model.r[i].value = (1 - model.sum_r_nrs)/max(model.N)
+                    
                 for i in model.L:
                     model.dm_hat[i] =model.S_hat[1,i]
                 solver = SolverFactory('ipopt')
@@ -614,7 +449,6 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
         model.Me     = Set(within = model.M,initialize = eiot_obj['pyo_Me'])
         model.S_hat  = Param(model.N,model.L,initialize = eiot_obj['pyo_S_hat'])
         model.S_I    = Param(model.M,model.L,initialize = eiot_obj['pyo_S_I']) 
-        model.abs_max_exc_ri = Param(model.Me,initialize = eiot_obj['pyo_abs_max_exc_ri'])
         model.ri         = Var(model.M, within=Reals) 
         model.r          = Var(model.N, within=NonNegativeReals)
         model.dm_hat     = Var(model.L, within=Reals)
@@ -625,17 +459,15 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                                + sum(model.ri[m] * model.S_I[m,i] for m in model.M  ))
         model.con1 = Constraint(model.L,rule=dm_hat_calc)
             
-        def ri_exc_g(model,i):
-            return model.ri[i] >= -model.r_I_ex_bin[i] * model.abs_max_exc_ri[i]
-        model.con3 = Constraint(model.Me,rule=ri_exc_g)
     
         def ri_exc_l(model,i):
-            return model.ri[i] <= model.r_I_ex_bin[i] * model.abs_max_exc_ri[i]
+            return model.ri[i] == model.r_I_ex_bin[i] 
         model.con4 = Constraint(model.Me,rule=ri_exc_l)
         
         def ri_exc_sum_eq_1(model):
             return sum(model.r_I_ex_bin[n] for n in model.Me) == 1
         model.con5 = Constraint(rule=ri_exc_sum_eq_1)
+        
         
         if dm.ndim==1:     
             dm_o         = dm
@@ -657,6 +489,8 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                 def fix_binary_ii(model):
                     return model.r_I_ex_bin[ii]==1
                 model.con6 =Constraint(rule=fix_binary_ii)
+                for i in model.M:
+                    model.ri[i].value = 0
                 model.ri[ii] = 1
                 for i in model.N:
                     model.r[i].value = (1 - model.sum_r_nrs)/max(model.N)
@@ -673,7 +507,9 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                 counter=counter+1;    
             
             indx=eiot_obj['pyo_Me'][np.argmin(OBJS)]  
-        
+            
+            for i in model.M:
+                    model.ri[i].value = 0
             def fix_binary_ii(model):
                 return model.r_I_ex_bin[indx]==1
             model.con6 =Constraint(rule=fix_binary_ii)
@@ -731,6 +567,8 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                     def fix_binary_ii(model):
                         return model.r_I_ex_bin[ii]==1
                     model.con6 =Constraint(rule=fix_binary_ii)
+                    for i in model.M:
+                        model.ri[i].value = 0
                     model.ri[ii] = 1
                     for i in model.N:
                         model.r[i].value = (1-model.sum_r_nrs)/max(model.N) 
@@ -745,12 +583,14 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                     else:
                         OBJS=np.vstack((OBJS,value(model.obj)))  
                     counter=counter+1;    
-                            
+         
                 indx=eiot_obj['pyo_Me'][np.argmin(OBJS)]  
-        
+    
                 def fix_binary_ii(model):
                     return model.r_I_ex_bin[indx]==1
                 model.con6 =Constraint(rule=fix_binary_ii)
+                for i in model.M:
+                    model.ri[i].value = 0    
                 model.ri[indx] = 1
                 for i in model.N:
                     model.r[i].value = (1-model.sum_r_nrs)/max(model.N)
@@ -788,12 +628,88 @@ def calc(dm,eiot_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                     r_I_hat = np.vstack((r_I_hat,r_I_hat_))
                     ssr     = np.vstack((ssr,ssr_))
                     dm_hat  = np.vstack((dm_hat,dm_hat_))
-
-    output = {'r_hat':r_hat,'r_I_hat':r_I_hat,'dm_hat':dm_hat,'ssr':ssr,'model':model,'results':results}    
-    #return r_hat,r_I_hat,ssr,dm_hat,model,results
+    
+    M = r_I_hat**2/np.tile(np.var(r_I_hat,axis=0,ddof=1,keepdims=True),(r_I_hat.shape[0],1))
+    M = np.sum(M,axis=1,keepdims=True)
+    
+    output = {'r_hat':r_hat,'r_I_hat':r_I_hat,'dm_hat':dm_hat,'ssr':ssr,'M': M}    
     return output
 
-def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):    
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+def buildwPLS(Dm,Ck,A,*,num_si_u=0,rk=False):
+    num_sI=num_si_u
+    if isinstance(rk,bool):     
+        print('Building a PLS based EIOT Unsupervised object')
+        pls_obj=phi.pls(Ck,Dm,A)
+        Dm_hat=phi.pls_pred(Ck,pls_obj)
+    else:
+        print('Building a PLS based EIOT Supervised object')
+        aux=np.hstack((Ck,rk))
+        pls_obj=phi.pls(aux,Dm,A)
+        Dm_hat=phi.pls_pred(aux,pls_obj)
+    pls_obj=phi.conv_eiot(pls_obj,r_length=Ck.shape[1])
+    
+    Dm_hat=Dm_hat['Yhat']
+    if num_sI>0:
+        E_ch       = Dm-Dm_hat
+        [U,S,Vh]   = np.linalg.svd(E_ch)
+        V          = Vh.T
+        S_I        = V[:,0:num_sI]
+        S_short    = S[0:num_sI]
+        r_I        = U[:,0:num_sI] * np.tile(S_short,(U.shape[0],1))
+        SR         = E_ch- r_I @ S_I.T
+        SSR        = np.sum(SR**2,1,keepdims=1)
+        lambdas    = S[num_sI]
+    else:
+        S_I        = np.nan
+        SR         = Dm-Dm_hat 
+        E_ch       = SR
+        [U,S,Vh]   = np.linalg.svd(E_ch)
+        V          = Vh.T
+        lambdas    = np.diag(S)
+        lambdas    = np.diag(lambdas)
+        SSR        = np.sum(SR**2,axis=1)  
+        r_I        = np.nan
+        
+    if not(isinstance(S_I,float)):
+        S_I=S_I.T
+    
+    eiot_obj                   = pls_obj
+    eiot_obj['wPLS']           = True
+    eiot_obj['S_I']            = S_I
+    eiot_obj['E_ch']           = E_ch
+    eiot_obj['r_I']            = r_I
+    eiot_obj['SR']             = SR
+    eiot_obj['SSR']            = SSR
+    eiot_obj['num_sI']         = num_sI
+    eiot_obj['num_e_sI']       = 0
+    eiot_obj['abs_max_exc_ri'] = np.nan
+    eiot_obj['S_E_CONF_INT']   = np.nan
+
+#Convert Numpy objects to lists and dict for PYOMO    
+    if not(isinstance(S_I,float)):
+        pyo_S_I = ee.np2D2pyomo(eiot_obj['S_I'])   #convert numpy to dictionary
+        pyo_K   = np.arange(1,eiot_obj['S_I'].shape[0]+1)    #index for non-chemical interferences
+        pyo_K   = pyo_K.tolist()
+    else:
+        pyo_S_I = np.nan
+        pyo_K   = [0]
+
+    eiot_obj['pyo_K']     = pyo_K
+    eiot_obj['pyo_S_I']   = pyo_S_I
+    eiot_obj['lambdas'] = lambdas
+    
+    return eiot_obj
+
+def calc_pls(dm,pls_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,rk=False): 
+    print('Evaluating a PLS based EIOT on data')
+    if sum_r_nrs==0:
+        sum_r_nrs=np.array([0])
     model         = ConcreteModel()
     model.A       = Set(initialize = pls_obj['pyo_A'] )
     model.N       = Set(initialize = pls_obj['pyo_N'] )
@@ -818,12 +734,7 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
     def calc_scores(model,i):
         return model.tau[i] == sum(model.Ws[n,i] * ((model.x_hat[n]-model.mx[n])/model.sx[n]) for n in model.N )
     model.eq1 = Constraint(model.A,rule=calc_scores)
-
-#        INCORPORATED BELOW         
-#        def y_hat_calc(model,i):
-#            return (model.y_hat[i]-model.my[i])/model.sy[i]==sum(model.Q[i,a]*model.tau[a] for a in model.A)
-#        model.eq2 = Constraint(model.M,rule=y_hat_calc)
-    
+  
     def calc_ht2(model):
         return model.ht2 == sum( model.tau[a]**2/model.var_t[a] for a in model.A)
     model.eq3 = Constraint(rule=calc_ht2)
@@ -831,9 +742,7 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
     def non_neg_const(model,i):
             return model.x_hat[i]  >= 0
     model.eq4 = Constraint(model.indx_r, rule=non_neg_const)
-    
-################################################################################        
-# Additions to consider S_I build from residuals to PLS
+          
     if not isinstance(pls_obj['pyo_S_I'],float):
         model.K      = Set(initialize = pls_obj['pyo_K'] )
         model.ri     = Var(model.K, within=Reals) 
@@ -845,12 +754,11 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
         def y_hat_calc(model,i):
             return (model.y_hat[i]-model.my[i])/model.sy[i]==sum(model.Q[i,a]*model.tau[a] for a in model.A)
         model.eq2 = Constraint(model.M,rule=y_hat_calc)
-# Additions to consider S_I build from residuals to PLS
-################################################################################            
+        
 
     if dm.ndim==1:        
         dm_o      = dm
-        dm        = ee.np1D2pyomo(dm)                #convert numpy to dictionary
+        dm        = ee.np1D2pyomo(dm)         #  convert numpy to dictionary
         
         if isinstance(sum_r_nrs,np.ndarray):  # convert numpy to float
             sum_r_nrs=np.float64(sum_r_nrs)
@@ -864,6 +772,16 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
         def obj_rule(model):
             return sum((model.dm[m]-model.y_hat[m])**2 for m in model.M) #+ 0.0*model.ht2
         model.obj = Objective(rule=obj_rule) 
+    
+        for i in model.N:
+            model.x_hat[i].value = (1 - model.sum_r_nrs)/max(model.N)
+            
+        for i in model.M:
+            model.y_hat[i] = model.my[i]
+                    
+        if not isinstance(pls_obj['pyo_S_I'],float):
+            for i in model.K:
+                model.ri[i].value = 0
     
         if not(isinstance(rk,bool)) and (pls_obj['indx_rk_eq']!=0):
             if isinstance(rk,list):
@@ -896,13 +814,14 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
         ssr    = np.sum(sr)
         
         r_hat = x_hat[np.array(pls_obj['indx_r'])-1]
-        if not isinstance(pls_obj['pyo_S_I'],float):
-            r_I_hat = []
+        
+        r_I_hat = []
+        if not isinstance(eiot_obj['pyo_S_I'],float):
             for i in model.ri:
-                r_I_hat.append(value(model.ri[i]))    
-            r_I_hat = np.array(r_I_hat)     
-        else:
-            r_I_hat=0
+                r_I_hat.append(value(model.ri[i]))
+            r_I_hat = np.array(r_I_hat)
+                
+                
     else:
         O=dm.shape[0]
         for o in np.arange(O):
@@ -931,6 +850,15 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                 return sum((model.dm[m]-model.y_hat[m])**2 for m in model.M) #+ 0.0*model.ht2
             model.obj = Objective(rule=obj_rule) 
 
+            for i in model.N:
+                model.x_hat[i].value = (1 - model.sum_r_nrs)/max(model.N)
+                    
+            for i in model.M:
+                model.y_hat[i] =model.my[i]
+                    
+            if not isinstance(pls_obj['pyo_S_I'],float):
+                for i in model.K:
+                    model.ri[i].value = 0
             
             if not(isinstance(rk,bool)) and (pls_obj['indx_rk_eq']!=0):
                 rk_       = rk[o,:]
@@ -961,17 +889,13 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
             dm_hat_ = pls_obj['my'].T+(( pls_obj['Q'] @ tau_)*pls_obj['sy'].T)
             sr_     = (dm_o - dm_hat_.T)**2
             ssr_    = np.sum(sr_)
+            
+            r_I_hat_ = []
             if not isinstance(pls_obj['pyo_S_I'],float):
-                r_I_hat_ = []
                 for i in model.ri:
                     r_I_hat_.append(value(model.ri[i]))    
-                r_I_hat_ = np.array(r_I_hat_)     
-                if o==0:
-                    r_I_hat = r_I_hat_
-                else:
-                    r_I_hat = np.vstack((r_I_hat,r_I_hat_))
-            else:
-                r_I_hat =0
+                r_I_hat_ = np.array(r_I_hat_)   
+                
             model.del_component(model.sum_r_nrs)
             model.del_component(model.dm)
             model.del_component(model.con2)
@@ -986,17 +910,18 @@ def calc_pls(dm,pls_obj,sum_r_nrs,*,see_solver_diagnostics=False,rk=False):
                 tau     = tau_.T
                 dm_hat  = dm_hat_
                 ssr     = ssr_
+                r_I_hat = r_I_hat_
             else:
                 x_hat   = np.vstack((x_hat,x_hat_))
                 y_hat   = np.vstack((y_hat,y_hat_))
                 tau     = np.vstack((tau,tau_.T))
                 dm_hat  = np.vstack((dm_hat,dm_hat_))
                 ssr     = np.vstack((ssr,ssr_))
-                
+                r_I_hat = np.vstack((r_I_hat,r_I_hat_))
                 
         r_hat = x_hat[:,np.array(pls_obj['indx_r'])-1]
-    output = {'r_hat':r_hat,'x_hat':x_hat,'dm_hat':dm_hat,'tau':tau,'ssr':ssr,'r_I_hat':r_I_hat,'model':model,'results':results}
-    #return r_hat,x_hat,dm_hat,tau,ssr,r_I_hat,model,results
+    
+    M = r_I_hat**2/np.tile(np.var(r_I_hat,axis=0,ddof=1,keepdims=True),(r_I_hat.shape[0],1))
+    M = np.sum(M,axis=1,keepdims=True)
+    output = {'r_hat':r_hat,'x_hat':x_hat,'dm_hat':dm_hat,'tau':tau,'ssr':ssr,'r_I_hat':r_I_hat, 'M':M}
     return output
-            
-
