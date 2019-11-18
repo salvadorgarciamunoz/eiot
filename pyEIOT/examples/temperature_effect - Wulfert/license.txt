@@ -1,0 +1,22 @@
+Copyright 2005 Biosystems Data Analysis Group ; Universiteit van Amsterdam  
+
+
+This is a license to use and modify SOFTWARE  & DATA produced by:
+THE BIOSYSTEMS DATA ANALYSIS GROUP OF THE UNIVERSITEIT VAN AMSTERDAM
+
+If you use, modify or redistribute the SOFTWARE & DATA and/or your source modifications, you agree: 
+
+i)	to use the SOFTWARE & DATA and/or your source modifications solely as part of your research and 
+	not in any commercial product; 
+	
+ii)	that the SOFTWARE  & DATA and/or your source modifications will not be distributed for profit; 
+
+iii)	all copyright notices and this license note with the SOFTWARE & DATA are retained any 
+	redistribution of the SOFTWARE & DATA, or any portion thereof; 
+
+(iv)	to indemnify, hold harmless, and defend the "Biosystems Data Analysis Group of 
+	the Universiteit van Amsterdam" from and against any claims or lawsuits that 
+	arise or result from the use of the SOFTWARE & DATA or your source modifications. 
+	
+Reserved Rights. The "Biosystems Data Analysis Group of the Universiteit van Amsterdam" retain 
+title and all ownership rights to the SOFTWARE & DATA.
