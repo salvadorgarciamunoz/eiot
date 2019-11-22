@@ -29,7 +29,7 @@ def build_supervised_(Dm,Ck,Rk,num_e_sI,num_sI_U):
         
     Rk_mean  = np.mean(Rk,axis=0,keepdims=1)
     Rk_      = Rk - np.tile(Rk_mean,(Rk.shape[0],1))
-    Rk_std   = np.std(Rk_,axis=0,keepdims=1)
+    Rk_std   = np.std(Rk_,axis=0,keepdims=1,ddof=1)
     Rk_      = Rk_ / np.tile(Rk_std,(Rk.shape[0],1))
     Rk_n     = Rk_
 # Do not scale binary numbers for exclusive signatures
@@ -458,7 +458,6 @@ def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,rk=False):
             return model.dm_hat[i] == (sum(model.r[n] * model.S_hat[n,i] for n in model.N  ) 
                                + sum(model.ri[m] * model.S_I[m,i] for m in model.M  ))
         model.con1 = Constraint(model.L,rule=dm_hat_calc)
-            
     
         def ri_exc_l(model,i):
             return model.ri[i] == model.r_I_ex_bin[i] 
