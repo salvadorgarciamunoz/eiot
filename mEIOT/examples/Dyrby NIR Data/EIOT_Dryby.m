@@ -61,7 +61,7 @@ ylabel('Eigenvalues of \epsilon_{ch}','FontSize',16)
 rmse_vs_nci = [];
 for nci = 0:7
     eiot_obj             = eiot_build(spectra_cal_savgol,Ck_cal,nci);
-    [r_hat, ri_hat, ssr] = eiot_calc4mat(spectra_val_savgol,eiot_obj);
+    [r_hat, ri_hat, ssr] = eiot_calc(spectra_val_savgol,eiot_obj);
     error = Ck_val(:,1) - r_hat(:,1);
     rmse_ = sqrt(mean(error.^2));
     rmse_vs_nci=[rmse_vs_nci;rmse_];
@@ -76,7 +76,7 @@ ylabel('RMSE for Validation Set','FontSize',16)
 % BUILD AN SUPERVISED EIOT OBJECT WITH ZERO NON-CHEMICAL INTERFERENCES 
 % AND PLOT THE LAMBDA VALUES FOR THE CHEMICAL ERROR
 %                                            
-eiot_obj_sup=eiot_build_supervised(spectra_cal_savgol,Ck_cal,dose_source_cal,0);
+eiot_obj_sup=eiot_build(spectra_cal_savgol,Ck_cal,0,dose_source_cal);
 figure,
 plot(eiot_obj_sup.lambdas(1:10),'ob','MarkerFaceColor','b','MarkerSize',10)
 title('Lambda plot for Supervised EIOT','FontSize',16)
@@ -91,9 +91,9 @@ ylabel('Eigenvalues of \epsilon_{ch}','FontSize',16)
 rmse_vs_nci_ps = [];
 rmse_vs_nci_as = [];
 for nci = 0:7
-    eiot_obj_sup = eiot_build_supervised(spectra_cal_savgol,Ck_cal,dose_source_cal,nci);
-    [r_hat_ps, ri_hat, ssr] = eiot_calc4mat(spectra_val_savgol,eiot_obj_sup);
-    [r_hat_as, ri_hat, ssr] = eiot_calc4mat(spectra_val_savgol,eiot_obj_sup,0,dose_source_val);
+    eiot_obj_sup = eiot_build(spectra_cal_savgol,Ck_cal,nci,dose_source_cal);
+    [r_hat_ps, ri_hat, ssr] = eiot_calc(spectra_val_savgol,eiot_obj_sup);
+    [r_hat_as, ri_hat, ssr] = eiot_calc(spectra_val_savgol,eiot_obj_sup,0,dose_source_val);
     error_as = Ck_val(:,1) - r_hat_as(:,1);
     error_ps = Ck_val(:,1) - r_hat_ps(:,1);
     rmse_as = sqrt(mean(error_as.^2));
@@ -120,19 +120,19 @@ eiot_obj=eiot_build(spectra_cal_savgol,Ck_cal,1);
 %
 % PREDICT VALIDATION DATA WITH UNSUPERVISED MODEL
 %
-[r_hat_unsup, ri_hat_unsup, ssr_unsup] = eiot_calc4mat(spectra_val_savgol,eiot_obj);
+[r_hat_unsup, ri_hat_unsup, ssr_unsup] = eiot_calc(spectra_val_savgol,eiot_obj);
 %
 % BUILD SUPERVISED EIOT OBJECT WITH 1 NCI
 %
-eiot_obj_sup=eiot_build_supervised(spectra_cal_savgol,Ck_cal,dose_source_cal,1);
+eiot_obj_sup=eiot_build(spectra_cal_savgol,Ck_cal,1,dose_source_cal);
 %
 % PREDICT VALIDATION DATA WITH SUPERVISED MODEL IN PASSIVE SUPERVISION MODE
 %
-[r_hat_ps, ri_hat_ps, ssr_ps] = eiot_calc4mat(spectra_val_savgol,eiot_obj_sup);
+[r_hat_ps, ri_hat_ps, ssr_ps] = eiot_calc(spectra_val_savgol,eiot_obj_sup);
 %
 % PREDICT VALIDATION DATA WITH SUPERVISED MODEL IN ACTIVE SUPERVISION MODE
 %
-[r_hat_as, ri_hat_as, ssr_as] = eiot_calc4mat(spectra_val_savgol,eiot_obj_sup,0,dose_source_val);
+[r_hat_as, ri_hat_as, ssr_as] = eiot_calc(spectra_val_savgol,eiot_obj_sup,0,dose_source_val);
 
 %
 %PLOT PRED VS OBSERVED FOR ALL 3 CASES
