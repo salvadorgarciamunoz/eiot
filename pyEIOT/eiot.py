@@ -16,13 +16,36 @@ import pyphi as phi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  
-def build(dm,ck,*,rk=False,num_e_si=0,num_si_u=0):
-    if not(isinstance(rk,bool)):
+def build(Dm,R,*,R_ik=False,num_si_u=0,num_si_e=0):
+    """
+    
+     EIOT BUILD Routines by Salvador Garcia-Munoz (sgarciam@ic.ac.uk, sal.garcia@lilly.com)
+
+    Parameters
+    ----------
+    Dm : TYPE: Numpy Array
+        DESCRIPTION: Mixture Spectra [o x lambda].
+    R : TYPE: Numpy Array
+        DESCRIPTION: Known composition per sample (mass/mole/volume fractions) [o x n].
+    R_ik : TYPE: Numpy Array OPTIONAL.
+        DESCRIPTION: Supervised non-chemical interferences [o x m], Default = None.
+    num_si_u : TYPE: Integer OPTIONAL.
+        DESCRIPTION: Number of unsupervised non-chemical interferences, Default = 0.
+    num_si_e : TYPE: Integer OPTIONAL.
+        DESCRIPTION: Number of exclusive non-chemical interferences, Default = 0.
+
+    Returns
+    -------
+    eiot_object (Dictionary)
+
+    """
+
+    if not(isinstance(R_ik,bool)):
         print('Building supervised EIOT')
-        eiot_obj=build_supervised_(dm,ck,Rk=rk,num_e_sI=num_e_si,num_sI_U=num_si_u)
+        eiot_obj=build_supervised_(Dm,R,Rk=R_ik,num_e_sI=num_si_e,num_sI_U=num_si_u)
     else:
         print('Building Unsupervised EIOT')
-        eiot_obj=build_(dm,ck,num_sI=num_si_u)  
+        eiot_obj=build_(Dm,R,num_sI=num_si_u)  
     return eiot_obj
         
 def build_supervised_(Dm,Ck,Rk,num_e_sI,num_sI_U):
@@ -129,7 +152,8 @@ def build_supervised_(Dm,Ck,Rk,num_e_sI,num_sI_U):
         Ck_r_I= Ck
     else:
         Ck_r_I= np.hstack((Ck,r_I))
-    A     = np.linalg.pinv(Ck_r_I.T @ Ck_r_I ) 
+    myaux = np.diagflat(np.diag(Ck_r_I.T @ Ck_r_I))    
+    A     = np.linalg.pinv(myaux) 
     A_    = np.reshape(np.diag(A),(A.shape[0],1))
     e_T_e = np.diag(SR.T @ SR)
     e_T_e = e_T_e.T
@@ -279,10 +303,35 @@ def build_(Dm,Ck,num_sI):
     return eiot_obj
         
         
-def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,rk=False):  
+def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=False):  
+    """
+    
+    EIOT CALC Routines by Salvador Garcia-Munoz (sgarciam@ic.ac.uk, sal.garcia@lilly.com)
+
+    Parameters
+    ----------
+    dm : TYPE: Numpy Array or Vector.
+        DESCRIPTION. Matrix [o x lambda] or Vector of mixture spectra. 
+    eiot_obj : TYPE: Dictionary object created by 'eiot.build'.
+        DESCRIPTION: Parameters for EIOT calculations.
+    sum_r_nrs : TYPE: float or Numpy vector OPTIONAL.
+        DESCRIPTION: Sumation of fraction for non-resolved species. The default is 0.
+    see_solver_diagnostics : TYPE, Boolean OPTIONAL.
+        DESCRIPTION: If True will display output from IPOPT.
+    r_ik : TYPE: Numpy Array.
+        DESCRIPTION: Supervised non-chemical interferences per sample, for active supervision mode.
+
+    Returns
+    -------
+    eiot_prediction_object: TYPE: Dictionary.
+        DESCRIPTION: Predictions and diagnostics.
+
+    """
     print('Evaluating EIOT on data')
-    if sum_r_nrs==0:
-        sum_r_nrs=np.array([0])
+    rk=r_ik
+    if not(isinstance(sum_r_nrs,np.ndarray)):
+        if sum_r_nrs==0:
+         sum_r_nrs=np.array([0])
     if eiot_obj['num_e_sI']==0 or not(isinstance(rk,bool)):
         model        = ConcreteModel()
         model.L      = Set(initialize = eiot_obj['pyo_L'] )
@@ -640,7 +689,30 @@ def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,rk=False):
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-def buildwPLS(Dm,Ck,A,*,num_si_u=0,rk=False):
+def buildwPLS(Dm,R,A,*,num_si_u=0,R_ik=False):
+    """
+    PLS-EIOT BUILD Routines by Salvador Garcia-Munoz (sgarciam@ic.ac.uk, sal.garcia@lilly.com)
+
+    Parameters
+    ----------
+    Dm : TYPE, Numpy Array.
+        DESCRIPTION. Mixture spectra [o x lambda].
+    R : TYPE, Numpy Array.
+        DESCRIPTION. Compositional matrix [o x n] with mass/mole/vol fractions.
+    A : TYPE, Integer.
+        DESCRIPTION. Number of latent variables to use in PLS model.
+    num_si_u : TYPE, optional.
+        DESCRIPTION. Number of un-supervised non-chemical interferences, the default is 0.
+    R_ik : TYPE, Numpy Array.
+        DESCRIPTION. Matrix with supervised non-chemical interferences The default is False.
+
+    Returns
+    -------
+    eiot_pred_obj a Dictionary with predicions and diagnostics
+
+    """
+    rk=R_ik
+    Ck=R
     num_sI=num_si_u
     if isinstance(rk,bool):     
         print('Building a PLS based EIOT Unsupervised object')
@@ -651,7 +723,7 @@ def buildwPLS(Dm,Ck,A,*,num_si_u=0,rk=False):
         aux=np.hstack((Ck,rk))
         pls_obj=phi.pls(aux,Dm,A)
         Dm_hat=phi.pls_pred(aux,pls_obj)
-    pls_obj=phi.conv_eiot(pls_obj,r_length=Ck.shape[1])
+    pls_obj=phi.conv_pls_2_eiot(pls_obj,r_length=Ck.shape[1])
     
     Dm_hat=Dm_hat['Yhat']
     if num_sI>0:
@@ -702,13 +774,37 @@ def buildwPLS(Dm,Ck,A,*,num_si_u=0,rk=False):
     eiot_obj['pyo_K']     = pyo_K
     eiot_obj['pyo_S_I']   = pyo_S_I
     eiot_obj['lambdas'] = lambdas
-    
     return eiot_obj
 
-def calc_pls(dm,pls_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,rk=False): 
+def calc_pls(dm,eiot_pls_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=False): 
+    """
+    PLS-EIOT CALC Routines by Salvador Garcia-Munoz (sgarciam@ic.ac.uk, sal.garcia@lilly.com)
+
+    Parameters
+    ----------
+    dm : TYPE Numpy Array
+        DESCRIPTION. Matrix [o x lambda] or Vector of mixture spectra.
+    eiot_pls_obj : TYPE Dictionary object produced by eiot.buildwPLS
+        DESCRIPTION. EIOT object created with PLS.
+    sum_r_nrs : TYPE, Scalar or Vector 
+        DESCRIPTION. sumation of fractions for non-resolved species optional The default is 0.
+    see_solver_diagnostics : TYPE, Boolean optional.
+        DESCRIPTION. Display diagnostcs from IPOPT The default is False.
+    R_ik : TYPE, Numpy Matrix, optional.
+        DESCRIPTION. Supervised non-chemical interferences.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
     print('Evaluating a PLS based EIOT on data')
-    if sum_r_nrs==0:
-        sum_r_nrs=np.array([0])
+    rk=r_ik
+    pls_obj=eiot_pls_obj
+    if not(isinstance(sum_r_nrs,np.ndarray)):
+        if sum_r_nrs==0:
+         sum_r_nrs=np.array([0])
     model         = ConcreteModel()
     model.A       = Set(initialize = pls_obj['pyo_A'] )
     model.N       = Set(initialize = pls_obj['pyo_N'] )
@@ -854,7 +950,10 @@ def calc_pls(dm,pls_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,rk=False):
                     
             for i in model.M:
                 model.y_hat[i] =model.my[i]
-                    
+                
+            for i in model.A:
+                model.tau[i]=0
+                
             if not isinstance(pls_obj['pyo_S_I'],float):
                 for i in model.K:
                     model.ri[i].value = 0

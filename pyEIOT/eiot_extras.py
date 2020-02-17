@@ -53,6 +53,82 @@ def read_eiot_matlab(filename):
     else:
         eiot_obj['abs_max_exc_ri']=np.nan
     return eiot_obj
+
+
+def read_pls_eiot_matlab(filename):
+    eiot_obj=spio.loadmat(filename)
+    del eiot_obj['__header__']
+    del eiot_obj['__version__']
+    del eiot_obj['__globals__']    
+    eiot_obj['num_e_sI']=int(eiot_obj['num_e_sI'])
+    eiot_obj['num_sI']=int(eiot_obj['num_sI'])
+    eiot_obj['abs_max_exc_ri']=eiot_obj['abs_max_exc_ri'][0]
+    
+    #Convert Numpy objects to lists and dict for PYOMO
+    pyo_A = np.arange(1,eiot_obj['T'].shape[1]+1)  #index for LV's
+    pyo_N = np.arange(1,eiot_obj['P'].shape[0]+1)  #columns of x_hat (chemical species and nci)
+    pyo_M = np.arange(1,eiot_obj['Q'].shape[0]+1)  #index for chemical species
+    pyo_A = pyo_A.tolist()
+    pyo_N = pyo_N.tolist()
+    pyo_M = pyo_M.tolist()
+    
+    eiot_obj['indx_rk_eq'] = eiot_obj['indx_rk_eq'].tolist()
+    eiot_obj['indx_rk_eq'] = eiot_obj['indx_rk_eq'][0]
+    eiot_obj['indx_r'] = eiot_obj['indx_r'].tolist()
+    eiot_obj['indx_r'] = eiot_obj['indx_r'][0]
+    
+    if eiot_obj['num_e_sI']!=0:
+        pyo_Me = np.arange(eiot_obj['num_sI']-eiot_obj['num_e_sI']+1,eiot_obj['num_sI']+1)
+        pyo_Me = pyo_Me.tolist()
+        
+   
+    pyo_Ws = np2D2pyomo(eiot_obj['Ws'])
+    pyo_Q  = np2D2pyomo(eiot_obj['Q'])
+    pyo_P  = np2D2pyomo(eiot_obj['P'])
+    var_t = np.var(eiot_obj['T'],axis=0)
+    pyo_var_t = np1D2pyomo(eiot_obj['var_t'])
+    pyo_mx    = np1D2pyomo(eiot_obj['mx'])
+    pyo_sx    = np1D2pyomo(eiot_obj['sx'])
+    pyo_my    = np1D2pyomo(eiot_obj['my'])
+    pyo_sy    = np1D2pyomo(eiot_obj['sy'])
+    
+    
+    if not(isinstance(eiot_obj['S_I'],float)):
+        pyo_S_I = np2D2pyomo(eiot_obj['S_I'])   #convert numpy to dictionary
+        pyo_K   = np.arange(1,eiot_obj['S_I'].shape[0]+1)    #index for non-chemical interferences
+        pyo_K   = pyo_K.tolist()
+    else:
+        pyo_S_I = np.nan
+        pyo_K   = [0]
+        
+    eiot_obj['pyo_A']     = pyo_A
+    eiot_obj['pyo_N']     = pyo_N
+    eiot_obj['pyo_M']     = pyo_M
+    eiot_obj['pyo_K']     = pyo_K    
+    eiot_obj['pyo_S_I']   = pyo_S_I   
+    eiot_obj['pyo_A']      = pyo_A
+    eiot_obj['pyo_N']      = pyo_N
+    eiot_obj['pyo_M']      = pyo_M
+    eiot_obj['pyo_Ws']     = pyo_Ws
+    eiot_obj['pyo_Q']      = pyo_Q
+    eiot_obj['pyo_P']      = pyo_P
+    eiot_obj['pyo_var_t']  = pyo_var_t
+    eiot_obj['pyo_mx']     = pyo_mx
+    eiot_obj['pyo_sx']     = pyo_sx
+    eiot_obj['pyo_my']     = pyo_my
+    eiot_obj['pyo_sy']     = pyo_sy
+    eiot_obj['pyo_S_I']    = pyo_S_I
+    eiot_obj['var_t']      = var_t
+    
+    
+    if eiot_obj['num_e_sI']!=0:
+        aux = eiot_obj['num_sI']-eiot_obj['num_e_sI'] 
+        aux_dict=dict(((j+aux+1), eiot_obj['abs_max_exc_ri'][j]) for j in range(len(eiot_obj['abs_max_exc_ri'])))
+        eiot_obj['pyo_Me']             = pyo_Me
+        eiot_obj['pyo_abs_max_exc_ri'] = aux_dict
+    else:
+        eiot_obj['abs_max_exc_ri']=np.nan
+    return eiot_obj
     
 def np2D2pyomo(arr):
     output=dict(((i+1,j+1), arr[i][j]) for i in range(arr.shape[0]) for j in range(arr.shape[1]))
@@ -231,4 +307,70 @@ def predvsobsplot(Y,Yhat,*,variable_names=False,obs_names=False):
     show(column(p_list))        
     return    
 
+def conv_pls_2_eiot(plsobj,*,r_length=False):
+    plsobj_ = plsobj.copy()
+    
+    A = plsobj['T'].shape[1]
+    N = plsobj['P'].shape[0]
+    M = plsobj['Q'].shape[0]
+    
+    
+    pyo_A = np.arange(1,A+1)  #index for LV's
+    pyo_N = np.arange(1,N+1)  #index for columns of X
+    pyo_M = np.arange(1,M+1)  #index for columns of Y
+    pyo_A = pyo_A.tolist()
+    pyo_N = pyo_N.tolist()
+    pyo_M = pyo_M.tolist()
+    
+    pyo_Ws = np2D2pyomo(plsobj['Ws'])
+    pyo_Q  = np2D2pyomo(plsobj['Q'])
+    pyo_P  = np2D2pyomo(plsobj['P'])
+    
+    var_t = np.var(plsobj['T'],axis=0)
+    
+    pyo_var_t = np1D2pyomo(var_t)
+    pyo_mx    = np1D2pyomo(plsobj['mx'])
+    pyo_sx    = np1D2pyomo(plsobj['sx'])
+    pyo_my    = np1D2pyomo(plsobj['my'])
+    pyo_sy    = np1D2pyomo(plsobj['sy'])
+    
+    
+    if not isinstance(r_length,bool):
+        if r_length < N:   
+            indx_r     = np.arange(1,r_length+1)
+            indx_rk_eq = np.arange(r_length+1,N+1)
+            indx_r     = indx_r.tolist()
+            indx_rk_eq = indx_rk_eq.tolist()
+        elif r_length == N:
+            indx_r  = pyo_N
+            indx_rk_eq=0
+        else:
+            print('r_length >> N !!')
+            print('Forcing r_length=N')
+            indx_r  = pyo_N
+            indx_rk_eq=0
+            
+    else:
+        if not r_length:
+           indx_r  = pyo_N 
+           indx_rk_eq = 0
+            
+    plsobj_['pyo_A']      = pyo_A
+    plsobj_['pyo_N']      = pyo_N
+    plsobj_['pyo_M']      = pyo_M
+    plsobj_['pyo_Ws']     = pyo_Ws
+    plsobj_['pyo_Q']      = pyo_Q
+    plsobj_['pyo_P']      = pyo_P
+    plsobj_['pyo_var_t']  = pyo_var_t
+    plsobj_['indx_r']     = indx_r
+    plsobj_['indx_rk_eq'] = indx_rk_eq
+    plsobj_['pyo_mx']     = pyo_mx
+    plsobj_['pyo_sx']     = pyo_sx
+    plsobj_['pyo_my']     = pyo_my
+    plsobj_['pyo_sy']     = pyo_sy
+    plsobj_['S_I']        = np.nan
+    plsobj_['pyo_S_I']    = np.nan
+    plsobj_['var_t']      = var_t
+    return plsobj_    
+        
     
