@@ -122,7 +122,7 @@ plt.show()
 
 
 # BUILD A MODEL WITH ZERO NCI AND LOOK AT LAMBDA PLOTS
-eiot_obj=eiot.build(spectra_cal,conc_cal,rk=temp_cal)
+eiot_obj=eiot.build(spectra_cal,conc_cal,R_ik=temp_cal)
 fig,ax=plt.subplots()
 ax.plot(eiot_obj['lambdas'][0:10],'ob')
 ax.set(title='Lambdas for EIOT Sup w Temp NCI=0',xlabel='#NCI',ylabel='lambda')
@@ -133,9 +133,9 @@ rmse_vs_nci_ps = []
 rmse_vs_nci_as = []
 
 for nci in [0,1,2,3,4,5,6,8,9,10]:
-    eiot_obj    = eiot.build(spectra_cal,conc_cal,rk=temp_cal,num_si_u=nci)
+    eiot_obj    = eiot.build(spectra_cal,conc_cal,R_ik=temp_cal,num_si_u=nci)
     pred_sup_ps = eiot.calc(spectra_val,eiot_obj)
-    pred_sup_as = eiot.calc(spectra_val,eiot_obj,rk=temp_val)
+    pred_sup_as = eiot.calc(spectra_val,eiot_obj,r_ik=temp_val)
     rmse_ps     = np.sqrt(np.mean((conc_val[:,0] - pred_sup_ps['r_hat'][:,0])**2))
     rmse_as     = np.sqrt(np.mean((conc_val[:,0] - pred_sup_as['r_hat'][:,0])**2))
     rmse_vs_nci_ps.append(rmse_ps)
@@ -152,8 +152,8 @@ plt.show()
 
 
 # BASED ON PREVIOUS PLOT CHOOSE 6 NCI
-eiot_obj    = eiot.build(spectra_cal,conc_cal,rk=temp_cal,num_si_u=6)
-pred_sup_as = eiot.calc(spectra_val,eiot_obj,rk=temp_val)
+eiot_obj    = eiot.build(spectra_cal,conc_cal,R_ik=temp_cal,num_si_u=6)
+pred_sup_as = eiot.calc(spectra_val,eiot_obj,r_ik=temp_val)
 rmse_as     = np.sqrt(np.mean((conc_val - pred_sup_as['r_hat'])**2,axis=0,keepdims=True))
 
 
