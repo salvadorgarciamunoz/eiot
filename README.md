@@ -1,6 +1,8 @@
 # eiot
 Extended Iterative Optimization Technology (EIOT)
+
 Supervised EIOT
+
 PLS based EIOT
 
 by Sal Garcia (sal.garcia@lilly.com / sgarciam@ic.ac.uk / salvadorgarciamunoz@gmail.com)
