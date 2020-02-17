@@ -55,7 +55,7 @@ pls_obj=phi.pls(np.hstack((Ck_cal,dose_source_cal)),nir_spectra_2_use_cal,6)
 pp.r2pv(pls_obj)
 
 #Chose 3LV's moving forward. Now to determine the # of NCI
-eiotpls_obj= eiot.buildwPLS(nir_spectra_2_use_cal,Ck_cal,3,num_si_u=0,rk=dose_source_cal)
+eiotpls_obj= eiot.buildwPLS(nir_spectra_2_use_cal,Ck_cal,3,num_si_u=0,R_ik=dose_source_cal)
 
 #Plot the Lambdas using MATPLOTLIB
 fig,ax=plt.subplots()
@@ -71,9 +71,9 @@ print('Lambdas :' + str(eiotpls_obj['lambdas'][0:7]))
 rmse_vs_nci_ps = []
 rmse_vs_nci_as = []
 for nci in list(range(0,4)):
-    eiot_obj_pls  = eiot.buildwPLS(nir_spectra_2_use_cal,Ck_cal,3,num_si_u=nci,rk=dose_source_cal)
+    eiot_obj_pls  = eiot.buildwPLS(nir_spectra_2_use_cal,Ck_cal,3,num_si_u=nci,R_ik=dose_source_cal)
     pred_sup_ps   = eiot.calc_pls(nir_spectra_2_use_val,eiot_obj_pls)
-    pred_sup_as   = eiot.calc_pls(nir_spectra_2_use_val,eiot_obj_pls,rk=dose_source_val)
+    pred_sup_as   = eiot.calc_pls(nir_spectra_2_use_val,eiot_obj_pls,r_ik=dose_source_val)
     rmse_ps       = np.sqrt(np.mean((Ck_val[:,0] - pred_sup_ps['r_hat'][:,0])**2))
     rmse_as       = np.sqrt(np.mean((Ck_val[:,0] - pred_sup_as['r_hat'][:,0])**2))
     rmse_vs_nci_ps.append(rmse_ps)
@@ -106,13 +106,13 @@ plt.show()
 
 
 # Build  Supervised EIOT Model with 1 NCI 
-eiot_obj_pls  = eiot.buildwPLS(nir_spectra_2_use_cal,Ck_cal,3,num_si_u=1,rk=dose_source_cal)
+eiot_obj_pls  = eiot.buildwPLS(nir_spectra_2_use_cal,Ck_cal,3,num_si_u=1,R_ik=dose_source_cal)
 print("Lambda threshold for Sup. EIOT w PLS = "+ str(eiot_obj_pls['lambdas']))
 
 
 #Predict validation data w/ Supervised EIOT and ACTIVE Supervision
 print('Making predictions of Validation set using Supervised object w AS')
-pred_sup_as   = eiot.calc_pls(nir_spectra_2_use_val,eiot_obj_pls,rk=dose_source_val)
+pred_sup_as   = eiot.calc_pls(nir_spectra_2_use_val,eiot_obj_pls,r_ik=dose_source_val)
 
 #Plot obs vs Pred.
 fig,ax=plt.subplots()

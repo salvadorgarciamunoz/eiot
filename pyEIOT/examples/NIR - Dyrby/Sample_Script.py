@@ -71,7 +71,10 @@ ax.set_xlabel('# NCI')
 plt.show()
 
 # Build  Supervised EIOT Model and plot lambdas
-eiot_obj_S = eiot.build(nir_spectra_2_use_cal,Ck_cal,rk=dose_source_cal)
+eiot_obj_S = eiot.build(nir_spectra_2_use_cal,Ck_cal,R_ik=dose_source_cal)
+pred_sup_ps = eiot.calc(nir_spectra_2_use_val,eiot_obj_S)
+pred_sup_as = eiot.calc(nir_spectra_2_use_val,eiot_obj_S,r_ik=dose_source_val)
+    
 fig,ax=plt.subplots()
 ax.set_title('Lambda plot for Supervised EIOT')
 ax.plot(list(range(1,11)),eiot_obj_S['lambdas'][0:10],'ob')
@@ -82,18 +85,18 @@ print('Lambdas :' + str(eiot_obj_S['lambdas'][0:7]))
 #PLOT RMSE vs # of NCI
 rmse_vs_nci_ps = []
 rmse_vs_nci_as = []
-for nci in list(range(0,7)):
-    eiot_obj_S  = eiot.build(nir_spectra_2_use_cal,Ck_cal,rk=dose_source_cal,num_si_u=nci)
+for nci in [0,1,2,3,4,5,6,7]:
+    eiot_obj_S  = eiot.build(nir_spectra_2_use_cal,Ck_cal,R_ik=dose_source_cal,num_si_u=nci)
     pred_sup_ps = eiot.calc(nir_spectra_2_use_val,eiot_obj_S)
-    pred_sup_as = eiot.calc(nir_spectra_2_use_val,eiot_obj_S,rk=dose_source_val)
+    pred_sup_as = eiot.calc(nir_spectra_2_use_val,eiot_obj_S,r_ik=dose_source_val)
     rmse_ps     = np.sqrt(np.mean((Ck_val[:,0] - pred_sup_ps['r_hat'][:,0])**2))
     rmse_as     = np.sqrt(np.mean((Ck_val[:,0] - pred_sup_as['r_hat'][:,0])**2))
     rmse_vs_nci_ps.append(rmse_ps)
     rmse_vs_nci_as.append(rmse_as)
 
 fig,ax=plt.subplots()
-ax.plot(list(range(0,7)),rmse_vs_nci_ps,'ob',label='Passive Supervision')
-ax.plot(list(range(0,7)),rmse_vs_nci_as,'or',label='Active Supervision')
+ax.plot(list(range(0,8)),rmse_vs_nci_ps,'ob',label='Passive Supervision')
+ax.plot(list(range(0,8)),rmse_vs_nci_as,'or',label='Active Supervision')
 ax.set_title('RMSE vs # of NCI Supervised EIOT')
 ax.set_ylabel('RMSE')
 ax.set_xlabel('# NCI')
@@ -101,14 +104,14 @@ ax.legend()
 plt.show()
 
 
-
+    
 
 # Build  Unsupervised EIOT Model with 1 NCI
 eiot_obj = eiot.build(nir_spectra_2_use_cal,Ck_cal,num_si_u=1)
 print("Lambda threshold for EIOT Unsup = "+ str(eiot_obj['lambdas']))
 
 # Build  Supervised EIOT Model with 1 NCI 
-eiot_obj_S = eiot.build(nir_spectra_2_use_cal,Ck_cal,rk=dose_source_cal,num_si_u=1)
+eiot_obj_S = eiot.build(nir_spectra_2_use_cal,Ck_cal,R_ik=dose_source_cal,num_si_u=1)
 print("Lambda threshold for EIOT Sup = "+ str(eiot_obj_S['lambdas']))
 
 #Predict validation data w/ Unsup EIOT
@@ -137,7 +140,7 @@ plt.show()
 
 #Predict validation data w/ Supervised EIOT and ACTIVE Supervision
 print('Making predictions of Validation set using Supervised object w AS')
-pred_sup_as=eiot.calc(nir_spectra_2_use_val,eiot_obj_S,rk=dose_source_val)
+pred_sup_as=eiot.calc(nir_spectra_2_use_val,eiot_obj_S,r_ik=dose_source_val)
 
 #Plot obs vs Pred.
 fig,ax=plt.subplots()
