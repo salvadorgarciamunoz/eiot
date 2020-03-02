@@ -910,6 +910,11 @@ def calc_pls(dm,eiot_pls_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=Fal
         
         r_hat = x_hat[np.array(pls_obj['indx_r'])-1]
         
+        if (pls_obj['indx_rk_eq']!=0):
+            r_Ik_hat=x_hat[np.array(pls_obj['indx_rk_eq'])-1]
+        else:
+            r_Ik_hat = np.nan
+            
         r_I_hat = []
         if not isinstance(eiot_obj['pyo_S_I'],float):
             for i in model.ri:
@@ -1018,8 +1023,13 @@ def calc_pls(dm,eiot_pls_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=Fal
                 r_I_hat = np.vstack((r_I_hat,r_I_hat_))
                 
         r_hat = x_hat[:,np.array(pls_obj['indx_r'])-1]
+        if (pls_obj['indx_rk_eq']!=0):
+            r_Ik_hat=x_hat[:,np.array(pls_obj['indx_rk_eq'])-1]
+        else:
+            r_Ik_hat = np.nan
     
     M = r_I_hat**2/np.tile(np.var(r_I_hat,axis=0,ddof=1,keepdims=True),(r_I_hat.shape[0],1))
     M = np.sum(M,axis=1,keepdims=True)
-    output = {'r_hat':r_hat,'x_hat':x_hat,'dm_hat':dm_hat,'tau':tau,'ssr':ssr,'r_I_hat':r_I_hat, 'M':M}
+    
+    output = {'r_hat':r_hat,'x_hat':x_hat,'dm_hat':dm_hat,'tau':tau,'ssr':ssr,'r_I_hat':r_I_hat,'r_Ik_hat':r_Ik_hat, 'M':M}
     return output
