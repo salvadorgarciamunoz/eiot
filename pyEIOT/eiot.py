@@ -909,7 +909,7 @@ def calc_pls(dm,eiot_pls_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=Fal
         ssr    = np.sum(sr)
         
         r_hat = x_hat[np.array(pls_obj['indx_r'])-1]
-        
+        # Need to return the supervised signatures
         if (pls_obj['indx_rk_eq']!=0):
             r_Ik_hat=x_hat[np.array(pls_obj['indx_rk_eq'])-1]
         else:
@@ -1023,6 +1023,7 @@ def calc_pls(dm,eiot_pls_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=Fal
                 r_I_hat = np.vstack((r_I_hat,r_I_hat_))
                 
         r_hat = x_hat[:,np.array(pls_obj['indx_r'])-1]
+        # Need to return the supervised signatures
         if (pls_obj['indx_rk_eq']!=0):
             r_Ik_hat=x_hat[:,np.array(pls_obj['indx_rk_eq'])-1]
         else:
