@@ -101,7 +101,11 @@ if ~isempty(rk)
     rk = rk -  eiot_obj.rk_stats.mean';
     rk = rk ./ eiot_obj.rk_stats.std';
 end
-    
+
+% define common input of quadprog mainly to turn off the messages
+lb=[];ub=[];x0=[];
+options = optimset('Display', 'off');
+
 if eiot_obj.num_e_si == 0 
     H   =  eiot_obj.S_E*eiot_obj.S_E';
     f   = -(dm'*eiot_obj.S_E');
@@ -117,7 +121,7 @@ if eiot_obj.num_e_si == 0
         Aeq = [Aeq; Aeq_];
         beq = [beq; beq_];
     end
-    c_E_hat = quadprog(H,f,A,b,Aeq,beq);
+    c_E_hat = quadprog(H,f,A,b,Aeq,beq,lb,ub,x0,options);
     r_hat   = c_E_hat(1:size(eiot_obj.S_hat,1));
     ri_hat  = c_E_hat(size(eiot_obj.S_hat,1)+1:end);
     dm_hat  = eiot_obj.S_E'*c_E_hat;
@@ -161,7 +165,7 @@ else
         end
         
         %Solve
-        c_E_hat = quadprog(H,f,A,b,Aeq,beq);
+        c_E_hat = quadprog(H,f,A,b,Aeq,beq,lb,ub,x0,options);
         dm_hat  = SE_m'*c_E_hat;
         ssr_    = sum((dm - dm_hat).^2);
         SSR_m   = [SSR_m ; ssr_];
@@ -196,7 +200,7 @@ else
     end
  
     %solve
-    c_E_hat = quadprog(H,f,A,b,Aeq,beq);
+    c_E_hat = quadprog(H,f,A,b,Aeq,beq,lb,ub,x0,options);
     
     dm_hat  = SE_m'*c_E_hat;
     ssr     = sum((dm - dm_hat).^2);
