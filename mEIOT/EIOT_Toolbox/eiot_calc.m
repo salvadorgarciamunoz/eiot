@@ -77,6 +77,7 @@ function [r_hat,ri_hat,ssr,m] = eiot_calc_vec(dm,eiot_obj,varargin)
 %          deflation.
 % m      : Mahalanobis distance of the ri_hat
 
+options =  optimset('Display','off');
 
 if nargin ==3
     sum_r_nrs = varargin{1};
@@ -102,56 +103,14 @@ if ~isempty(rk)
     rk = rk ./ eiot_obj.rk_stats.std';
 end
     
-if eiot_obj.num_e_si == 0 
-    H   =  eiot_obj.S_E*eiot_obj.S_E';
-    f   = -(dm'*eiot_obj.S_E');
-    A   = [];
-    b   = [];
-    Aeq = [ones(1,size(eiot_obj.S_E,1)-eiot_obj.num_si) zeros(1,eiot_obj.num_si)];
-%    Aeq = [ones(1,size(eiot_obj.S_hat,1)) zeros(1,eiot_obj.num_sI)];                     
-    beq = 1-sum_r_nrs;
-    if ~isempty(rk)
-        Aeq_ = diag(eiot_obj.index_rk_eq);
-        Aeq_ = Aeq_(sum(Aeq_,2)==1,:);
-        beq_ = rk;
-        Aeq = [Aeq; Aeq_];
-        beq = [beq; beq_];
-    end
-    c_E_hat = quadprog(H,f,A,b,Aeq,beq);
-    r_hat   = c_E_hat(1:size(eiot_obj.S_hat,1));
-    ri_hat  = c_E_hat(size(eiot_obj.S_hat,1)+1:end);
-    dm_hat  = eiot_obj.S_E'*c_E_hat;
-    ssr     = sum((dm - dm_hat).^2);
-    m       = sum((ri_hat.^2)./repmat(var(ri_hat),size(ri_hat,1),1),1);
-else 
-    me     = eiot_obj.num_e_si;
-    S_I_E =  eiot_obj.S_E(end-me+1:end,:);
-    SE_aux = eiot_obj.S_E(1:end-me,:); 
-    SSR_m = [];
-    
-    A       =  [];
-    b       =  [];
-    
-    for m = 1:me
-        % Evaluate one Exclusive at a time
-        
-        %Prepare quadratic programming problem
-        SE_m      = [SE_aux;S_I_E(m,:)];
-        H         =  SE_m*SE_m';
-        f         = -(dm'*SE_m');
-        
-        %add sumation to unity constraint
-        Aeq       = [ones(1,size(SE_m,1)-eiot_obj.num_si+me-1) zeros(1,eiot_obj.num_si-me+1)];
-        beq       = 1-sum_r_nrs;
-        
-        %add forced binary as a constraint
-        Aeq_      = zeros(1,size(SE_m,1));
-        Aeq_(end) = 1;
-        beq_      = 1;
-        Aeq       = [Aeq; Aeq_];
-        beq       = [beq; beq_];
-        
-        %If applicable add the equalities for rk
+if eiot_obj.num_e_si == 0 || ~isempty(rk)
+        H   =  eiot_obj.S_E*eiot_obj.S_E';
+        f   = -(dm'*eiot_obj.S_E');
+        A   = [];
+        b   = [];
+
+        Aeq = [ones(1,size(eiot_obj.S_hat,1)) zeros(1,eiot_obj.num_si)];                     
+        beq = 1-sum_r_nrs;
         if ~isempty(rk)
             Aeq_ = diag(eiot_obj.index_rk_eq);
             Aeq_ = Aeq_(sum(Aeq_,2)==1,:);
@@ -159,57 +118,77 @@ else
             Aeq = [Aeq; Aeq_];
             beq = [beq; beq_];
         end
-        
-        %Solve
-        c_E_hat = quadprog(H,f,A,b,Aeq,beq);
+
+        lb  = [zeros(1,size(eiot_obj.S_hat,1)) ones(1,eiot_obj.num_si)*-inf];
+        ub  = [ones(1,size(eiot_obj.S_hat,1))  ones(1,eiot_obj.num_si)*inf];
+
+        c_E_hat = quadprog(H,f,A,b,Aeq,beq,lb,ub,[],options);
+        r_hat   = c_E_hat(1:size(eiot_obj.S_hat,1));
+        ri_hat  = c_E_hat(size(eiot_obj.S_hat,1)+1:end);
+        dm_hat  = eiot_obj.S_E'*c_E_hat;
+        ssr     = sum((dm - dm_hat).^2);
+        m       = sum((ri_hat.^2)./repmat(var(ri_hat),size(ri_hat,1),1),1);
+else 
+        me     = eiot_obj.num_e_si;
+        S_I_E =  eiot_obj.S_E(end-me+1:end,:);  %Just exclusives
+        SE_aux = eiot_obj.S_E(1:end-me,:);      %SE without exclusives
+        SSR_m = [];
+
+        A       =  [];
+        b       =  [];
+
+        for m = 1:me
+            % Evaluate one Exclusive at a time
+
+            %Prepare quadratic programming problem
+            SE_m      = [SE_aux;S_I_E(m,:)];
+            H         =  SE_m*SE_m';
+            f         = -(dm'*SE_m');
+
+            if m==1  %ONLY NEEDS TO BE DONE ONCE
+                %add sumation to unity constraint
+                Aeq       = [ones(1,size(eiot_obj.S_hat,1))  zeros(1,eiot_obj.num_si-me+1)];
+                beq       = 1-sum_r_nrs;
+
+                %add forced binary as a constraint
+                Aeq_      = zeros(1,size(SE_m,1));
+                Aeq_(end) = 1;
+                beq_      = 1;
+                Aeq       = [Aeq; Aeq_];
+                beq       = [beq; beq_];                                  
+                lb  = [zeros(1,size(eiot_obj.S_hat,1)) (ones(1,eiot_obj.num_si-me+1))*-inf];
+                ub  = [ones(1,size(eiot_obj.S_hat,1))  (ones(1,eiot_obj.num_si-me+1))*inf ];
+            end
+            %Solve
+            c_E_hat = quadprog(H,f,A,b,Aeq,beq,lb,ub,[],options);
+            dm_hat  = SE_m'*c_E_hat;
+            ssr_    = sum((dm - dm_hat).^2);
+            SSR_m   = [SSR_m ; ssr_];
+        end
+
+        %find scenario with least ssr
+        [~,indx] = min(SSR_m);
+
+        %Prepare quadratic programming problem with best case
+        SE_m    = [SE_aux;S_I_E(indx,:)];
+        H       =  SE_m*SE_m';
+        f       = -(dm'*SE_m');
+
+        %solve
+        c_E_hat = quadprog(H,f,A,b,Aeq,beq,lb,ub,[],options);
+
         dm_hat  = SE_m'*c_E_hat;
-        ssr_    = sum((dm - dm_hat).^2);
-        SSR_m   = [SSR_m ; ssr_];
-    end
-    
-    %find scenario with least ssr
-    [~,indx] = min(SSR_m);
-    
-    %Prepare quadratic programming problem with best case
-    SE_m    = [SE_aux;S_I_E(indx,:)];
-    H       =  SE_m*SE_m';
-    f       = -(dm'*SE_m');
-    
-    %add sumation to unity constraint
-    Aeq     = [ones(1,size(SE_m,1)-eiot_obj.num_si+me-1) zeros(1,eiot_obj.num_si-me+1)];
-    beq     = 1-sum_r_nrs;
-    
-    %add forced binary = 1 as a constraint
-    Aeq_      = zeros(1,size(SE_m,1));
-    Aeq_(end) = 1;
-    beq_      = 1;
-    Aeq       = [Aeq; Aeq_];
-    beq       = [beq; beq_];
-    
-    %If applicable add equality constratints for rk
-    if ~isempty(rk)
-        Aeq_ = diag(eiot_obj.index_rk_eq);
-        Aeq_ = Aeq_(sum(Aeq_,2)==1,:);
-        beq_ = rk;
-        Aeq = [Aeq; Aeq_];
-        beq = [beq; beq_];
-    end
- 
-    %solve
-    c_E_hat = quadprog(H,f,A,b,Aeq,beq);
-    
-    dm_hat  = SE_m'*c_E_hat;
-    ssr     = sum((dm - dm_hat).^2);
-    
-    %rebuild exclusive part of ri 
-    rie       = zeros(me,1);
-    rie(indx) = 1;  
-    c_E_hat = [c_E_hat(1:end-me);rie]; 
-    
-    r_hat   = c_E_hat(1:size(eiot_obj.S_hat,1));
-    ri_hat  = c_E_hat(size(eiot_obj.S_hat,1)+1:end);
-    m       = sum((ri_hat.^2)./repmat(var(ri_hat),size(ri_hat,1),1),1);
-    
+        ssr     = sum((dm - dm_hat).^2);
+
+        %rebuild exclusive part of ri 
+        rie       = zeros(me,1);
+        rie(indx) = 1;  
+        c_E_hat = [c_E_hat(1:end-1);rie]; 
+
+        r_hat   = c_E_hat(1:size(eiot_obj.S_hat,1));
+        ri_hat  = c_E_hat(size(eiot_obj.S_hat,1)+1:end);
+        m       = sum((ri_hat.^2)./repmat(var(ri_hat),size(ri_hat,1),1),1);
+
 end % close end to main IF loop
 
 end

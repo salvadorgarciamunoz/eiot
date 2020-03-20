@@ -1,5 +1,5 @@
 function [eiot_obj]=eiot_build(dm,ck,varargin)
-% [eiot_obj]=eiot_build(dm,ck,<num_si_u,rk>)
+% [eiot_obj]=eiot_build(dm,ck,<num_si_u,rk,num_si_e>)
 %Inputs
 % dm       : Matrix - pre-processed  mixture spectra [o x l]
 % ck       : Maxtix - known concentrations           [o x n]
@@ -9,6 +9,8 @@ function [eiot_obj]=eiot_build(dm,ck,varargin)
 %            [num_si_u=0 if argument is not sent] 
 %
 % rk       : Matrix - Values of known non-chemical interferences   [m x l]
+% num_si_e : Scalar - Number of Exclusive Supervised non-chemical interferences to identify 
+%            [num_si_e=0 if argument is not sent] 
 
 %Outputs:
 % eiot_obj.S_hat      : Estimation of apparent pure component spectra
@@ -25,16 +27,23 @@ function [eiot_obj]=eiot_build(dm,ck,varargin)
     if     nargin==3
         num_si_u = varargin{1};
         rk=[];
+        num_si_e = 0;
     elseif nargin==4
         num_si_u = varargin{1};
         rk       = varargin{2};
+        num_si_e = 0;
+    elseif nargin==5
+        num_si_u = varargin{1};
+        rk       = varargin{2};
+        num_si_e = varargin{3};
     else
         num_si_u=0;
         rk=[];
+        num_si_e=0;
     end
 
     if ~isempty(rk)
-     [eiot_obj] = eiot_build_supervised(dm,ck,rk,num_si_u);
+     [eiot_obj] = eiot_build_supervised(dm,ck,rk,num_si_u,num_si_e);
     else
      [eiot_obj] = eiot_build_unsup(dm,ck,num_si_u);
     end
@@ -104,7 +113,7 @@ function  [eiot_obj] = eiot_build_unsup(dm,ck,num_si)
     eiot_obj.lambdas        = lambdas;
 end
 
-function  [eiot_obj] = eiot_build_supervised(dm,ck,rk,num_si_u)
+function  [eiot_obj] = eiot_build_supervised(dm,ck,rk,num_si_u,varargin)
 %function [eiot_obj] = eiot_build_supervised(dm,ck,rk,num_si_u)
 %Inputs:
 % dm       : Pre-processed matrix of mixture spectra
@@ -125,11 +134,14 @@ function  [eiot_obj] = eiot_build_supervised(dm,ck,rk,num_si_u)
 % eiot.lambdas        : eigenvalues of residual after chemical information and supervised interferences
 
 lambdas=[];
-num_e_si=0;  %Forcing exclusive signatures to zero, as they are non-relevant for now
+if nargin==4
+    num_e_si=0;  %Forcing exclusive signatures to zero, as they are non-relevant for now
+elseif  nargin==5
+    num_e_si=varargin{1};
+end
 
 rk_stats.mean = mean(rk);
 rk_stats.std  = std(rk);
-  
 rk_ = rk - repmat(mean(rk),size(rk,1),1);
 rk_ = rk_ ./ repmat(std(rk_),size(rk,1),1);
 
