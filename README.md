@@ -1,15 +1,10 @@
 # eiot
 Extended Iterative Optimization Technology (EIOT)
-
 Supervised EIOT
-
 PLS based EIOT
 
 by Sal Garcia (sal.garcia@lilly.com / sgarciam@ic.ac.uk / salvadorgarciamunoz@gmail.com)
 
-MUCH improved version [but still the same idea] from the published method in: 
+Garcia-Munoz, S. and Hernandez Torres, E., 2020. Supervised Extended Iterative Optimization Technology for the estimation of powder compositions in pharmaceutical applications: Method and lifecycle management. Industrial & Engineering Chemistry Research.
 
-Shi, Z., Hermiller, J. and Muñoz, S.G., 2019. Estimation of mass‐based composition in powder mixtures using Extended Iterative Optimization Technology (EIOT). AIChE Journal, 65(1), pp.87-98.
-
-
-New manuscript in preparation
+https://pubs.acs.org/doi/pdf/10.1021/acs.iecr.0c01385
