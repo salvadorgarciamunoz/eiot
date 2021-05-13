@@ -36,8 +36,8 @@ Ck_val          = Ck          (2:2:end,:);
 dose_source_val = dose_source (2:2:end,:);
 figure,plot(spectra_cal'),title('Calibration Set Raw NIR Spectra'),set(gcf,'Name','Calibration Set Raw Spectra')
 figure,plot(spectra_val'),title('Validation Set Raw NIR Spectra'),set(gcf,'Name','Validation Set Raw Spectra')
-[spectra_cal_savgol,M] = phi_savgol(spectra_cal, 5, 2, 1);
-[spectra_val_savgol,M] = phi_savgol(spectra_val, 5, 2, 1);
+[spectra_cal_savgol,M] = eiot_savgol(spectra_cal, 5, 2, 1);
+[spectra_val_savgol,M] = eiot_savgol(spectra_val, 5, 2, 1);
 figure,plot(spectra_cal_savgol');title('SAVGOL on NIR Spectra'),set(gcf,'Name','Calibration Set SAVGOL Spectra')
 figure,plot(spectra_val_savgol');title('SAVGOL on NIR Spectra'),set(gcf,'Name','Validation  Set SAVGOL Spectra')
     
