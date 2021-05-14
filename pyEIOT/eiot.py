@@ -9,18 +9,18 @@ import numpy as np
 from pyomo.environ import *
 import pyphi as phi
 
-# Autoconfig pyomo NLP solver. Use 1) Ipopt Binary (with hsl if available),
-# 2) gams:ipopt, or 3) neos server
-
 from shutil import which
 from pyomo.solvers.plugins.solvers.GAMS import GAMSDirect, GAMSShell
+import warnings
+# Autoconfig pyomo NLP solver. Use 1) Ipopt Binary (with hsl if available),
+# 2) gams:ipopt, or 3) neos server
 
 hsl_ok = False
 if bool(which('ipopt')):
     ipopt_solver = 'ipopt'
     # Check if we have libhsl availble to use as IPOPT's linear solver
     # TODO: Does not look for ma57 header specifically. The free personal
-    #  libhsl license does not include ma57, only ma27, so this will cause
+    # libhsl license does not include ma57, only ma27, so this will cause
     #  an error when run.
     from ctypes.util import find_library
     hsl_ok = find_library('libhsl')
@@ -28,14 +28,15 @@ if bool(which('ipopt')):
         print("Solving NLPs with IPOPT/MA57 by default.")
     else:
         print("Solving NLPs with IPOPT/MUMMPS by default.")
+
 elif (GAMSDirect().available(exception_flag=False) or GAMSShell().available(exception_flag=False)):
     ipopt_solver = 'gams:ipopt'
     print("Solving NLPs with GAMS/IPOPT by default")
-    import warnings
     warnings.warn("GAMS/IPOPT has had issues with constraint qualifications and long solve times. Binary IPOPT strongly recommened.")
+
 else:
-    raise FileNotFoundError("IPOPT is a required external dependency. See README.md for installation suggestions.")
-    # ipopt_solver = 'neos' # Way too slow
+    warnings.warn("Too many NLPs to solve with NEOS/IPOPT. Must assign have environment variable \"NEOS_EMAIL\" declared. Binary IPOPT strongly recommended. Optionally, set eiot.ipopt_solver = \"custom\" and define eiot.custom_nlpsolver or redefine eiot.auto_nlpsolver with alternative.")
+    ipopt_solver = 'neos' # Way too slow
 
 
 def auto_nlpsolver(model, tee):
@@ -50,13 +51,11 @@ def auto_nlpsolver(model, tee):
     """
 
     if ipopt_solver == "ipopt":
-        print("Solving NLP using local IPOPT executable")
         solver = SolverFactory("ipopt")
         if hsl_ok:
             solver.options['linear_solver']='ma57'
         results = solver.solve(model,tee=tee)
     elif ipopt_solver == "gams:ipopt":
-        print("Solving NLP using GAMS/IPOPT interface")
         solver = SolverFactory('gams:ipopt')
 
         # It doesn't seem to notice the opt file when I write it
@@ -66,7 +65,6 @@ def auto_nlpsolver(model, tee):
         results = custom_nlpsolver(model, tee)
     else:
         # Default to neos as backup
-        print("Solving NLP using IPOPT on remote NEOS server")
         solver_manager = SolverManagerFactory('neos')
         results = solver_manager.solve(model, opt='ipopt', tee=tee)
     return results
