@@ -183,6 +183,12 @@ def eiot_summary_plot(eiot_obj,*,filename='myplot',saveplot_flag=False):
     return   
         
 def snv (x):
+    """
+    Inputs:
+        x: Spectra
+    Outputs:
+        x: Post-processed Spectra
+    """
     if x.ndim ==2:
         mean_x = np.mean(x,axis=1,keepdims=1)     
         mean_x = np.tile(mean_x,(1,x.shape[1]))
@@ -200,6 +206,20 @@ def snv (x):
         return x
     
 def savgol(ws,od,op,Dm):
+    """
+    Savitzky-Golay filter for spectra
+    inputs:
+    ws : Window Size
+    od: Order of the derivative
+    op: Order of the polynomial
+    Dm: Spectra
+
+    Outputs:
+        Dm_sg, M
+
+        Dm_sg: Processed Spectra
+        M:     Transformation Matrix for new samples
+    """
     if Dm.ndim==1: 
         l = Dm.shape[0]
     else:
@@ -372,5 +392,3 @@ def conv_pls_2_eiot(plsobj,*,r_length=False):
     plsobj_['pyo_S_I']    = np.nan
     plsobj_['var_t']      = var_t
     return plsobj_    
-        
-    
