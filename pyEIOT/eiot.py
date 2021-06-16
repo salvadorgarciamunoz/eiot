@@ -46,7 +46,7 @@ if bool(which('ipopt')):
     if ma57_ok:
         print("Solving NLPs with IPOPT/MA57 by default.")
     else:
-        print("Solving NLPs with IPOPT/MUMMPS by default.")
+        print("Solving NLPs with IPOPT's default linear solver.")
 
 elif (GAMSDirect().available(exception_flag=False) or GAMSShell().available(exception_flag=False)):
     ipopt_solver = 'gams:ipopt'
