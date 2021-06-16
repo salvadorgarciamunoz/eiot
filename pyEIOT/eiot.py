@@ -38,12 +38,12 @@ def ma57_dummy_check():
     ma57_ok = r.solver.status == SolverStatus.ok
     return ma57_ok
 
-hsl_ok = False
+ma57_ok = False
 if bool(which('ipopt')):
     ipopt_solver = 'ipopt'
-    hsl_ok = ma57_dummy_check()
+    ma57_ok = ma57_dummy_check()
     
-    if hsl_ok:
+    if ma57_ok:
         print("Solving NLPs with IPOPT/MA57 by default.")
     else:
         print("Solving NLPs with IPOPT/MUMMPS by default.")
@@ -71,7 +71,7 @@ def auto_nlpsolver(model, tee):
 
     if ipopt_solver == "ipopt":
         solver = SolverFactory("ipopt")
-        if hsl_ok:
+        if ma57_ok:
             solver.options['linear_solver']='ma57'
         results = solver.solve(model,tee=tee)
     elif ipopt_solver == "gams:ipopt":
