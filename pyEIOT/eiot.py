@@ -15,19 +15,38 @@ import warnings
 # Autoconfig pyomo NLP solver. Use 1) Ipopt Binary (with hsl if available),
 # 2) gams:ipopt, or 3) neos server
 
-hsl_ok = False
+def ma57_dummy_check():
+    """
+    Instantiates a trivial NLP to solve with IPOPT and MA57.
+    Returns:
+          ma57_ok: boolean, True if IPOPT solved with SolverStaus.ok
+    """
+    m = ConcreteModel()
+    m.x = Var()
+    m.Obj = Objective(expr = m.x**2 -1)
+
+    s = SolverFactory('ipopt')
+    s.options['linear_solver'] = 'ma57'
+
+    import logging
+    pyomo_logger = logging.getLogger('pyomo.core')
+    LOG_DEFAULT = pyomo_logger.level
+    pyomo_logger.setLevel(logging.ERROR)
+    r = s.solve(m)
+    pyomo_logger.setLevel(LOG_DEFAULT)
+    
+    ma57_ok = r.solver.status == SolverStatus.ok
+    return ma57_ok
+
+ma57_ok = False
 if bool(which('ipopt')):
     ipopt_solver = 'ipopt'
-    # Check if we have libhsl availble to use as IPOPT's linear solver
-    # TODO: Does not look for ma57 header specifically. The free personal
-    # libhsl license does not include ma57, only ma27, so this will cause
-    #  an error when run.
-    from ctypes.util import find_library
-    hsl_ok = find_library('libhsl')
-    if hsl_ok:
+    ma57_ok = ma57_dummy_check()
+    
+    if ma57_ok:
         print("Solving NLPs with IPOPT/MA57 by default.")
     else:
-        print("Solving NLPs with IPOPT/MUMMPS by default.")
+        print("Solving NLPs with IPOPT's default linear solver.")
 
 elif (GAMSDirect().available(exception_flag=False) or GAMSShell().available(exception_flag=False)):
     ipopt_solver = 'gams:ipopt'
@@ -52,7 +71,7 @@ def auto_nlpsolver(model, tee):
 
     if ipopt_solver == "ipopt":
         solver = SolverFactory("ipopt")
-        if hsl_ok:
+        if ma57_ok:
             solver.options['linear_solver']='ma57'
         results = solver.solve(model,tee=tee)
     elif ipopt_solver == "gams:ipopt":
