@@ -8,12 +8,41 @@ import eiot_extras as ee
 import numpy as np
 from pyomo.environ import *
 import pyphi as phi
-
 from shutil import which
-from pyomo.solvers.plugins.solvers.GAMS import GAMSDirect, GAMSShell
-import warnings
-# Autoconfig pyomo NLP solver. Use 1) Ipopt Binary (with hsl if available),
-# 2) gams:ipopt, or 3) neos server
+import os
+os.environ['NEOS_EMAIL'] = 'pyphi_helpdesk@onmail.com' 
+
+try:
+    from pyomo.environ import *
+    pyomo_ok = True
+    print('Pyomo found')
+except ImportError:
+    pyomo_ok = False
+    print('Pyomo not found')
+
+if bool(which('gams')):
+    gams_ok = True    
+    print('GAMS found')
+else:
+    gams_ok = False             # GAMS is run via pyomo
+    print('GAMS not found')
+    
+
+# Check if an IPOPT binary available is availbale
+# shutil was introduced in Python 3.2
+ipopt_ok = bool(which('ipopt'))
+if ipopt_ok:
+    print('IPOPT Found')
+else:
+    print('IPOPT Not Found')
+
+# Check for Pyomo/GAMS interface is available
+if pyomo_ok and gams_ok:
+    from pyomo.solvers.plugins.solvers.GAMS import GAMSDirect, GAMSShell
+    # exeption_flag = True (default) will throw an exception if GAMS
+    # is not available
+    gams_ok = (GAMSDirect().available(exception_flag=False)
+                or GAMSShell().available(exception_flag=False))
 
 def ma57_dummy_check():
     """
@@ -36,67 +65,30 @@ def ma57_dummy_check():
     pyomo_logger.setLevel(LOG_DEFAULT)
     
     ma57_ok = r.solver.status == SolverStatus.ok
+    if ma57_ok:
+        print("MA57 available to IPOPT")
+    else:
+        print('Pyomo found but MA57 not found')
     return ma57_ok
 
-ma57_ok = False
-if bool(which('ipopt')):
-    ipopt_solver = 'ipopt'
+if pyomo_ok and ipopt_ok:
     ma57_ok = ma57_dummy_check()
-    
-    if ma57_ok:
-        print("Solving NLPs with IPOPT/MA57 by default.")
-    else:
-        print("Solving NLPs with IPOPT's default linear solver.")
-
-elif (GAMSDirect().available(exception_flag=False) or GAMSShell().available(exception_flag=False)):
-    ipopt_solver = 'gams:ipopt'
-    print("Solving NLPs with GAMS/IPOPT by default")
-    warnings.warn("GAMS/IPOPT has had issues with constraint qualifications and long solve times. Binary IPOPT strongly recommened.")
-
 else:
-    warnings.warn("Too many NLPs to solve with NEOS/IPOPT. Must assign have environment variable \"NEOS_EMAIL\" declared. Binary IPOPT strongly recommended. Optionally, set eiot.ipopt_solver = \"custom\" and define eiot.custom_nlpsolver or redefine eiot.auto_nlpsolver with alternative.")
-    ipopt_solver = 'neos' # Way too slow
+    ma57_ok = False
 
+if not(pyomo_ok) or (not(ipopt_ok) and not(gams_ok)):
+    print('Will be using the NEOS server in the absence of IPOPT and GAMS')
 
-def auto_nlpsolver(model, tee):
-    """
-    model: NLP Pyomo Model to solve via our autoconfigured IPOPT Solver
-
-    define function custom_nlpsolve(model, tee) and set the package variable ipopt_solver
-    to "custom" if you want to implement your own customized SolverFactory, settings, then
-    return the results of solver.solve(model).
-
-    return: results of solve(model)
-    """
-
-    if ipopt_solver == "ipopt":
-        solver = SolverFactory("ipopt")
-        if ma57_ok:
-            solver.options['linear_solver']='ma57'
-        results = solver.solve(model,tee=tee)
-    elif ipopt_solver == "gams:ipopt":
-        solver = SolverFactory('gams:ipopt')
-
-        # It doesn't seem to notice the opt file when I write it
-        results = solver.solve(model, tee=tee)
-    elif ipopt_solver == "custom":
-        # Will throw error if custom_nlpsolver is not defined
-        results = custom_nlpsolver(model, tee)
-    else:
-        # Default to neos as backup
-        solver_manager = SolverManagerFactory('neos')
-        results = solver_manager.solve(model, opt='ipopt', tee=tee)
-    return results
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+ 
 def build(Dm,R,*,R_ik=False,num_si_u=0,num_si_e=0):
     """
-
+    
      EIOT BUILD Routines by Salvador Garcia-Munoz (sgarciam@ic.ac.uk, sal.garcia@lilly.com)
 
     Parameters
@@ -142,7 +134,7 @@ def build_supervised_(Dm,Ck,Rk,num_e_sI,num_sI_U):
     Rk      = Rk_n        
     Ck_aug  = np.hstack((Ck,Rk))
     num_sI  = Rk.shape[1]+num_sI_U
-    S_hat   = np.linalg.pinv(Ck_aug.T@Ck_aug)@Ck_aug.T@Dm
+    S_hat   = np.linalg.pinv(Ck_aug.T@Ck_aug)@Ck_aug.T@Dm        
     S_E_tmp = S_hat
         
     S_I_S   = S_hat[Ck.shape[1]:]    # Supervised non-chemical interferences
@@ -298,7 +290,6 @@ def build_supervised_(Dm,Ck,Rk,num_e_sI,num_sI_U):
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     
 def build_(Dm,Ck,num_sI):
-        
     S_hat  = np.linalg.pinv(Ck.T@Ck)@Ck.T@Dm
     Dm_hat = Ck @ S_hat
     
@@ -379,8 +370,29 @@ def build_(Dm,Ck,num_sI):
     eiot_obj['lambdas'] = lambdas
     
     return eiot_obj
-        
-        
+
+def solve_(model,*,SolverDiagnostics=False):
+    # Setup our solver as either local ipopt, gams:ipopt, or neos ipopt:
+    if (ipopt_ok):
+        print("Solving NLP using local IPOPT executable")
+        solver = SolverFactory('ipopt')
+        if (ma57_ok):
+            solver.options['linear_solver'] = 'ma57'
+        results = solver.solve(model,tee=SolverDiagnostics)
+    elif (gams_ok):
+        print("Solving NLP using GAMS/IPOPT interface")
+        # 'just 'ipopt' could work, if no binary in path
+        solver = SolverFactory('gams:ipopt')
+
+        # It doesn't seem to notice the opt file when I write it
+        results = solver.solve(model, tee=SolverDiagnostics)
+    else:                
+        print("Solving NLP using IPOPT on remote NEOS server")
+        solver_manager = SolverManagerFactory('neos')
+        results = solver_manager.solve(model, opt='ipopt', tee=SolverDiagnostics)
+    return results
+
+    
 def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=False):  
     """
     
@@ -473,8 +485,10 @@ def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=False):
              
             for i in model.L:
                 model.dm_hat[i] =model.S_hat[1,i]
-
-            results = auto_nlpsolver(model,tee=see_solver_diagnostics)
+            #solver = SolverFactory('ipopt')
+            #solver.options['linear_solver']='ma57'
+            #results=solver.solve(model,tee=see_solver_diagnostics)   
+            results = solve_(model,SolverDiagnostics=see_solver_diagnostics)
             r_hat = []
             for i in model.r:
                 r_hat.append(value(model.r[i]))       
@@ -534,7 +548,10 @@ def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=False):
                     
                 for i in model.L:
                     model.dm_hat[i] =model.S_hat[1,i]
-                results = auto_nlpsolver(model,tee=see_solver_diagnostics)
+                #solver = SolverFactory('ipopt')
+                #solver.options['linear_solver']='ma57'
+                #results=solver.solve(model,tee=see_solver_diagnostics)  
+                results = solve_(model,SolverDiagnostics=see_solver_diagnostics)
                 r_hat_ = []
                 for i in model.r:
                     r_hat_.append(value(model.r[i]))  
@@ -619,8 +636,10 @@ def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=False):
                     model.r[i].value = (1 - model.sum_r_nrs)/max(model.N)
                 for i in model.L:
                     model.dm_hat[i] =model.S_hat[1,i]
-
-                results = auto_nlpsolver(model,tee=see_solver_diagnostics)
+                #solver = SolverFactory('ipopt')
+                #solver.options['linear_solver']='ma57'
+                #results=solver.solve(model,tee=see_solver_diagnostics)
+                results = solve_(model,SolverDiagnostics=see_solver_diagnostics)
                 model.del_component(model.con6);
                 if counter==1:
                     OBJS=value(model.obj)
@@ -640,8 +659,10 @@ def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=False):
                 model.r[i].value = (1 - model.sum_r_nrs)/max(model.N)
             for i in model.L:
                 model.dm_hat[i] =model.S_hat[1,i]
-
-            results=auto_nlpsolver(model,tee=see_solver_diagnostics)
+            #solver = SolverFactory('ipopt')
+            #solver.options['linear_solver']='ma57'
+            #results=solver.solve(model,tee=see_solver_diagnostics)
+            results = solve_(model,SolverDiagnostics=see_solver_diagnostics)
             r_hat = []
             for i in model.r:
                 r_hat.append(value(model.r[i]))   
@@ -695,8 +716,10 @@ def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=False):
                         model.r[i].value = (1-model.sum_r_nrs)/max(model.N) 
                     for i in model.L:
                         model.dm_hat[i] =model.S_hat[1,i]
-
-                    results = auto_nlpsolver(model,tee=see_solver_diagnostics)
+                    #solver = SolverFactory('ipopt')
+                    #solver.options['linear_solver']='ma57'
+                    #results=solver.solve(model,tee=see_solver_diagnostics)
+                    results = solve_(model,SolverDiagnostics=see_solver_diagnostics)
                     model.del_component(model.con6)
                     if counter==1:
                         OBJS=value(model.obj)
@@ -716,8 +739,10 @@ def calc(dm,eiot_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=False):
                     model.r[i].value = (1-model.sum_r_nrs)/max(model.N)
                 for i in model.L:
                     model.dm_hat[i] =model.S_hat[1,i]
-
-                results = auto_nlpsolver(model,tee=see_solver_diagnostics)
+                #solver = SolverFactory('ipopt')
+                #solver.options['linear_solver']='ma57'
+                #results=solver.solve(model,tee=see_solver_diagnostics)
+                results = solve_(model,SolverDiagnostics=see_solver_diagnostics)
                 model.del_component(model.con6);
                 r_hat_ = []
                 for i in model.r:
@@ -959,8 +984,10 @@ def calc_pls(dm,eiot_pls_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=Fal
                 return model.x_hat[i] == model.rk[i]
             model.rk_eq = Constraint(model.indx_rk_eq,rule=known_supervised_eq_const)
     
-
-        results = auto_nlpsolver(model,tee=see_solver_diagnostics)
+        #solver = SolverFactory('ipopt')
+        #solver.options['linear_solver']='ma57'
+        #results=solver.solve(model,tee=see_solver_diagnostics)  
+        results = solve_(model,SolverDiagnostics=see_solver_diagnostics)
         x_hat = []
         for i in model.x_hat:
             x_hat.append(value(model.x_hat[i]))  
@@ -1043,9 +1070,10 @@ def calc_pls(dm,eiot_pls_obj,*,sum_r_nrs=0,see_solver_diagnostics=False,r_ik=Fal
                 model.rk_eq = Constraint(model.indx_rk_eq,rule=known_supervised_eq_const)
             
             
-
-
-            results = auto_nlpsolver(model,tee=see_solver_diagnostics)
+            #solver = SolverFactory('ipopt')
+            #solver.options['linear_solver']='ma57'
+            #results=solver.solve(model,tee=see_solver_diagnostics)  
+            results = solve_(model,SolverDiagnostics=see_solver_diagnostics)
             x_hat_ = []
             for i in model.x_hat:
                 x_hat_.append(value(model.x_hat[i]))  
