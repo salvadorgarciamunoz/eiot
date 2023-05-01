@@ -1,4 +1,4 @@
-pyphimva
+pyphi
 numpy
 matplotlib
 scipy
